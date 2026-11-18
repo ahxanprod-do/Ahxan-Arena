@@ -1,0 +1,6 @@
+{
+  "name": "Ahxan Arena",
+  "description": "Futuristic Cyberpunk Esports Tournament Platform with Live PayZapi UPI/USDT Gateway, Real-Time Shutter Alerts, Refer & Earn, and 12-Module Admin Command Center.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

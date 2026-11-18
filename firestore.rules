@@ -1,0 +1,606 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        ('email_verified' in request.auth.token) &&
+        request.auth.token.email_verified == true &&
+        ('email' in request.auth.token) &&
+        request.auth.token.email == 'ahxantalib@gmail.com';
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() ||
+        (isSignedIn() && exists(/databases/$(database)/documents/staff_roles/$(request.auth.uid)));
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // --- ENTITY VALIDATION HELPERS ---
+    function isValidUser(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.email is string && data.email.size() <= 200 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             (!('inGameName' in data) || (data.inGameName is string && data.inGameName.size() <= 60)) &&
+             (!('gameUid' in data) || (data.gameUid is string && data.gameUid.size() <= 60)) &&
+             data.depositBalance is number && data.depositBalance >= 0 &&
+             data.winningBalance is number && data.winningBalance >= 0 &&
+             data.bonusBalance is number && data.bonusBalance >= 0 &&
+             (!('totalWinnings' in data) || (data.totalWinnings is number && data.totalWinnings >= 0)) &&
+             (!('totalKills' in data) || (data.totalKills is int && data.totalKills >= 0)) &&
+             (!('matchesPlayed' in data) || (data.matchesPlayed is int && data.matchesPlayed >= 0)) &&
+             data.referralCode is string && data.referralCode.size() >= 3 && data.referralCode.size() <= 32 &&
+             (!('referredByCode' in data) || (data.referredByCode is string && data.referredByCode.size() <= 32)) &&
+             (!('referredByUid' in data) || (data.referredByUid is string && data.referredByUid.size() <= 128)) &&
+             (!('referralQualified' in data) || data.referralQualified is bool) &&
+             (!('referralCount' in data) || (data.referralCount is int && data.referralCount >= 0)) &&
+             (!('referralEarnings' in data) || (data.referralEarnings is number && data.referralEarnings >= 0)) &&
+             (!('streakDays' in data) || (data.streakDays is int && data.streakDays >= 0 && data.streakDays <= 365)) &&
+             (!('lastCheckInDay' in data) || (data.lastCheckInDay is string && data.lastCheckInDay.size() <= 20)) &&
+             data.role in ['user', 'staff', 'admin'] &&
+             data.banned is bool &&
+             (!('banReason' in data) || (data.banReason is string && data.banReason.size() <= 300)) &&
+             (!('pushEnabled' in data) || data.pushEnabled is bool) &&
+             (!('deviceLabel' in data) || (data.deviceLabel is string && data.deviceLabel.size() <= 120)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidLeaderboard(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             data.totalWinnings is number && data.totalWinnings >= 0 &&
+             data.totalKills is int && data.totalKills >= 0 &&
+             data.matchesPlayed is int && data.matchesPlayed >= 0 &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidReferralCode(data) {
+      return data.code is string && data.code.size() >= 3 && data.code.size() <= 32 &&
+             data.ownerUid is string && data.ownerUid.size() <= 128 &&
+             data.ownerName is string && data.ownerName.size() <= 80 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.type is string && data.type.size() >= 1 && data.type.size() <= 40 &&
+             data.amount is number && data.amount >= 0 &&
+             data.direction in ['credit', 'debit'] &&
+             data.walletBucket in ['deposit', 'winning', 'bonus'] &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 200)) &&
+             (!('referenceId' in data) || (data.referenceId is string && data.referenceId.size() <= 128)) &&
+             data.status is string && data.status.size() <= 30 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidTournament(data) {
+      return data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
+             data.game is string && data.game.size() >= 2 && data.game.size() <= 40 &&
+             data.mode in ['Solo', 'Duo', 'Squad'] &&
+             (!('mapName' in data) || (data.mapName is string && data.mapName.size() <= 60)) &&
+             data.entryType in ['Paid', 'Free'] &&
+             data.entryFee is number && data.entryFee >= 0 &&
+             data.prizePool is number && data.prizePool >= 0 &&
+             (!('perKillReward' in data) || (data.perKillReward is number && data.perKillReward >= 0)) &&
+             data.maxSlots is int && data.maxSlots >= 2 && data.maxSlots <= 500 &&
+             data.filledSlots is int && data.filledSlots >= 0 && data.filledSlots <= data.maxSlots &&
+             data.status in ['upcoming', 'live', 'completed', 'cancelled'] &&
+             data.scheduledAtMillis is int &&
+             (!('bannerKey' in data) || (data.bannerKey is string && data.bannerKey.size() <= 40)) &&
+             (!('rulesText' in data) || (data.rulesText is string && data.rulesText.size() <= 4000)) &&
+             (!('prizeBreakdown' in data) || (data.prizeBreakdown is string && data.prizeBreakdown.size() <= 1000)) &&
+             data.roomPublished is bool &&
+             (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() <= 128)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidRoomSecret(data) {
+      return data.roomId is string && data.roomId.size() >= 1 && data.roomId.size() <= 80 &&
+             data.roomPassword is string && data.roomPassword.size() >= 1 && data.roomPassword.size() <= 80 &&
+             (!('serverRegion' in data) || (data.serverRegion is string && data.serverRegion.size() <= 60)) &&
+             (!('publishedAtMillis' in data) || data.publishedAtMillis is int) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSlot(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.matchId is string && data.matchId.size() <= 128 &&
+             (!('matchTitle' in data) || (data.matchTitle is string && data.matchTitle.size() <= 120)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 80)) &&
+             data.inGameName is string && data.inGameName.size() >= 1 && data.inGameName.size() <= 60 &&
+             data.gameUid is string && data.gameUid.size() >= 1 && data.gameUid.size() <= 60 &&
+             (!('squadMembers' in data) || (data.squadMembers is list && data.squadMembers.size() <= 5)) &&
+             data.slotNumber is int && data.slotNumber >= 1 && data.slotNumber <= 500 &&
+             data.entryPaid is number && data.entryPaid >= 0 &&
+             (!('depositUsed' in data) || (data.depositUsed is number && data.depositUsed >= 0)) &&
+             (!('winningUsed' in data) || (data.winningUsed is number && data.winningUsed >= 0)) &&
+             (!('bonusUsed' in data) || (data.bonusUsed is number && data.bonusUsed >= 0)) &&
+             (!('couponCodeUsed' in data) || (data.couponCodeUsed is string && data.couponCodeUsed.size() <= 40)) &&
+             (!('discountAmount' in data) || (data.discountAmount is number && data.discountAmount >= 0)) &&
+             (!('kills' in data) || (data.kills is int && data.kills >= 0)) &&
+             (!('rank' in data) || (data.rank is int && data.rank >= 0)) &&
+             (!('prizeWon' in data) || (data.prizeWon is number && data.prizeWon >= 0)) &&
+             data.status in ['joined', 'kicked', 'refunded', 'settled'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidDeposit(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 200)) &&
+             (!('userName' in data) || (data.userName is string && data.userName.size() <= 80)) &&
+             data.clientOrderId is string && data.clientOrderId.size() >= 4 && data.clientOrderId.size() <= 80 &&
+             data.payzapiOrderId is string && data.payzapiOrderId.size() >= 1 && data.payzapiOrderId.size() <= 120 &&
+             data.amount is number && data.amount >= 1 && data.amount <= 500000 &&
+             data.provider in ['fampay', 'paytm', 'bharatpe', 'binance'] &&
+             (!('promoCode' in data) || (data.promoCode is string && data.promoCode.size() <= 40)) &&
+             (!('expectedPromoBonus' in data) || (data.expectedPromoBonus is number && data.expectedPromoBonus >= 0)) &&
+             (!('promoBonusCredited' in data) || (data.promoBonusCredited is number && data.promoBonusCredited >= 0)) &&
+             data.status in ['pending', 'completed', 'expired', 'failed'] &&
+             (!('utr' in data) || (data.utr is string && data.utr.size() <= 100)) &&
+             (!('qrCodeUrl' in data) || (data.qrCodeUrl is string && data.qrCodeUrl.size() <= 150000)) &&
+             (!('upiIntentUrl' in data) || (data.upiIntentUrl is string && data.upiIntentUrl.size() <= 2000)) &&
+             (!('checkoutUrl' in data) || (data.checkoutUrl is string && data.checkoutUrl.size() <= 2000)) &&
+             data.expiryMillis is int &&
+             (!('paidAtMillis' in data) || data.paidAtMillis is int) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidWithdrawal(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             (!('userName' in data) || (data.userName is string && data.userName.size() <= 80)) &&
+             (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 200)) &&
+             data.method in ['UPI', 'BINANCE_BEP20'] &&
+             data.destination is string && data.destination.size() >= 3 && data.destination.size() <= 160 &&
+             data.grossAmount is number && data.grossAmount > 0 &&
+             data.feeAmount is number && data.feeAmount >= 0 &&
+             data.netAmount is number && data.netAmount >= 0 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (!('utrOrTxHash' in data) || (data.utrOrTxHash is string && data.utrOrTxHash.size() <= 160)) &&
+             (!('rejectReason' in data) || (data.rejectReason is string && data.rejectReason.size() <= 300)) &&
+             (!('processedBy' in data) || (data.processedBy is string && data.processedBy.size() <= 200)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidCoupon(data) {
+      return data.code is string && data.code.size() >= 2 && data.code.size() <= 40 &&
+             data.couponType in ['deposit_bonus', 'match_discount'] &&
+             data.valueType in ['flat', 'percentage'] &&
+             data.value is number && data.value > 0 &&
+             data.minAmount is number && data.minAmount >= 0 &&
+             data.maxCap is number && data.maxCap >= 0 &&
+             data.maxGlobalUses is int && data.maxGlobalUses >= 1 &&
+             data.maxPerUserUses is int && data.maxPerUserUses >= 1 &&
+             data.usedCount is int && data.usedCount >= 0 &&
+             data.audience in ['all', 'new_users'] &&
+             data.active is bool &&
+             (!('expiresAtMillis' in data) || data.expiresAtMillis is int) &&
+             (!('totalDiscountGiven' in data) || (data.totalDiscountGiven is number && data.totalDiscountGiven >= 0)) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 200)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidCouponRedemption(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 200)) &&
+             data.code is string && data.code.size() <= 40 &&
+             data.orderOrMatchId is string && data.orderOrMatchId.size() <= 128 &&
+             data.amount is number && data.amount >= 0 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidReferralRecord(data) {
+      return data.referrerUid is string && data.referrerUid.size() <= 128 &&
+             data.referrerCode is string && data.referrerCode.size() <= 32 &&
+             data.referredUid is string && data.referredUid.size() <= 128 &&
+             (!('referredName' in data) || (data.referredName is string && data.referredName.size() <= 80)) &&
+             (!('deviceFingerprint' in data) || (data.deviceFingerprint is string && data.deviceFingerprint.size() <= 128)) &&
+             (!('triggerType' in data) || (data.triggerType is string && data.triggerType.size() <= 40)) &&
+             (!('rewardAmount' in data) || (data.rewardAmount is number && data.rewardAmount >= 0)) &&
+             (!('friendBonus' in data) || (data.friendBonus is number && data.friendBonus >= 0)) &&
+             data.status in ['pending', 'qualified', 'blocked'] &&
+             data.flaggedFraud is bool &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidTicket(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             (!('userName' in data) || (data.userName is string && data.userName.size() <= 80)) &&
+             (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 200)) &&
+             data.category is string && data.category.size() >= 2 && data.category.size() <= 60 &&
+             data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 160 &&
+             (!('matchId' in data) || (data.matchId is string && data.matchId.size() <= 128)) &&
+             (!('reportedPlayerUid' in data) || (data.reportedPlayerUid is string && data.reportedPlayerUid.size() <= 80)) &&
+             (!('screenshotBase64' in data) || (data.screenshotBase64 is string && data.screenshotBase64.size() <= 450000)) &&
+             data.status in ['open', 'in_progress', 'resolved', 'closed'] &&
+             (!('lastMessage' in data) || (data.lastMessage is string && data.lastMessage.size() <= 500)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidTicketMessage(data) {
+      return data.ticketId is string && data.ticketId.size() <= 128 &&
+             data.senderUid is string && data.senderUid.size() <= 128 &&
+             (!('senderName' in data) || (data.senderName is string && data.senderName.size() <= 80)) &&
+             data.senderRole in ['user', 'admin'] &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 2000 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidUserNotification(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+             data.body is string && data.body.size() >= 1 && data.body.size() <= 600 &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000)) &&
+             (!('route' in data) || (data.route is string && data.route.size() <= 120)) &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 40)) &&
+             data.read is bool &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidBroadcast(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+             data.body is string && data.body.size() >= 1 && data.body.size() <= 600 &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000)) &&
+             (!('redirectRoute' in data) || (data.redirectRoute is string && data.redirectRoute.size() <= 120)) &&
+             (!('priority' in data) || (data.priority is string && data.priority.size() <= 30)) &&
+             data.audienceType is string && data.audienceType.size() <= 40 &&
+             (!('audienceTargetId' in data) || (data.audienceTargetId is string && data.audienceTargetId.size() <= 128)) &&
+             (!('sentByEmail' in data) || (data.sentByEmail is string && data.sentByEmail.size() <= 200)) &&
+             (!('deliveredCount' in data) || (data.deliveredCount is int && data.deliveredCount >= 0)) &&
+             (!('failedCount' in data) || (data.failedCount is int && data.failedCount >= 0)) &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidCmsBanner(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 160)) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000)) &&
+             (!('drawableKey' in data) || (data.drawableKey is string && data.drawableKey.size() <= 40)) &&
+             (!('redirectRoute' in data) || (data.redirectRoute is string && data.redirectRoute.size() <= 120)) &&
+             data.active is bool &&
+             data.sortOrder is int &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidStaffRole(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+             (!('name' in data) || (data.name is string && data.name.size() <= 80)) &&
+             data.roleLabel is string && data.roleLabel.size() >= 2 && data.roleLabel.size() <= 40 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAuditLog(data) {
+      return data.adminUid is string && data.adminUid.size() <= 128 &&
+             data.adminEmail is string && data.adminEmail.size() <= 200 &&
+             data.actionType is string && data.actionType.size() <= 60 &&
+             (!('targetId' in data) || (data.targetId is string && data.targetId.size() <= 128)) &&
+             data.summary is string && data.summary.size() <= 500 &&
+             (!('oldValue' in data) || (data.oldValue is string && data.oldValue.size() <= 500)) &&
+             (!('newValue' in data) || (data.newValue is string && data.newValue.size() <= 500)) &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidPushDevice(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.deviceName is string && data.deviceName.size() <= 120 &&
+             data.platform is string && data.platform.size() <= 30 &&
+             data.enabled is bool &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    // --- COLLECTION RULES ---
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isValidId(userId) &&
+                       isOwner(userId) &&
+                       isValidUser(incoming()) &&
+                       incoming().userId == userId &&
+                       incoming().depositBalance == 0 &&
+                       incoming().winningBalance == 0 &&
+                       incoming().banned == false &&
+                       (incoming().role == 'user' || (isSuperAdmin() && incoming().role == 'admin'));
+
+      allow update: if isValidId(userId) && isSignedIn() && isValidUser(incoming()) && (
+        isAdmin() ||
+        (
+          isOwner(userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().role == existing().role &&
+          incoming().banned == existing().banned &&
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'inGameName', 'gameUid', 'photoUrl', 'pushEnabled', 'deviceLabel', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['referredByCode', 'referredByUid', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['bonusBalance', 'streakDays', 'lastCheckInDay', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['depositBalance', 'bonusBalance', 'referralQualified', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['depositBalance', 'winningBalance', 'bonusBalance', 'matchesPlayed', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['winningBalance', 'updatedAt'])
+          )
+        ) ||
+        (
+          // Referral payout from referred user's atomic qualification transaction
+          !isOwner(userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().role == existing().role &&
+          incoming().banned == existing().banned &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['bonusBalance', 'referralCount', 'referralEarnings', 'updatedAt']) &&
+          incoming().bonusBalance >= existing().bonusBalance &&
+          incoming().bonusBalance <= existing().bonusBalance + 500 &&
+          incoming().referralCount == existing().referralCount + 1 &&
+          existsAfter(/databases/$(database)/documents/referrals/$(request.auth.uid))
+        )
+      );
+
+      allow delete: if isValidId(userId) && isSuperAdmin();
+
+      match /transactions/{txId} {
+        allow get: if isValidId(txId) && isSignedIn() && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+        allow create: if isValidId(txId) && isSignedIn() && isValidTransaction(incoming()) && (isOwner(userId) || isAdmin());
+        allow update, delete: if isValidId(txId) && isAdmin();
+      }
+
+      match /joined_matches/{matchId} {
+        allow get: if isValidId(matchId) && isSignedIn() && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+        allow create: if isValidId(matchId) && isSignedIn() && isValidSlot(incoming()) && (isOwner(userId) || isAdmin());
+        allow update: if isValidId(matchId) && isSignedIn() && isValidSlot(incoming()) && isAdmin();
+        allow delete: if isValidId(matchId) && isAdmin();
+      }
+
+      match /notifications/{notifId} {
+        allow get: if isValidId(notifId) && isSignedIn() && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+        allow create: if isValidId(notifId) && isSignedIn() && isValidUserNotification(incoming()) && (isOwner(userId) || isAdmin());
+        allow update: if isValidId(notifId) && isSignedIn() && isValidUserNotification(incoming()) && (
+          isAdmin() ||
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['read']))
+        );
+        allow delete: if isValidId(notifId) && (isOwner(userId) || isAdmin());
+      }
+    }
+
+    match /leaderboard/{userId} {
+      allow get: if isValidId(userId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(userId) && isSignedIn() && isValidLeaderboard(incoming()) && (isOwner(userId) || isAdmin());
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    match /referral_codes/{code} {
+      allow get: if isValidId(code) && isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isValidId(code) && isSignedIn() && isValidReferralCode(incoming()) && (incoming().ownerUid == request.auth.uid || isAdmin());
+      allow update, delete: if isValidId(code) && isAdmin();
+    }
+
+    match /tournaments/{matchId} {
+      allow get: if isValidId(matchId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(matchId) && isAdmin() && isValidTournament(incoming());
+      allow update: if isValidId(matchId) && isSignedIn() && isValidTournament(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['filledSlots', 'updatedAt']) &&
+          incoming().filledSlots == existing().filledSlots + 1 &&
+          incoming().filledSlots <= existing().maxSlots &&
+          existing().status == 'upcoming'
+        )
+      );
+      allow delete: if isValidId(matchId) && isAdmin();
+
+      match /secrets/{secretId} {
+        allow get: if isValidId(secretId) && isSignedIn() && (
+          isAdmin() ||
+          exists(/databases/$(database)/documents/tournaments/$(matchId)/slots/$(request.auth.uid))
+        );
+        allow list: if isAdmin();
+        allow create, update: if isValidId(secretId) && isAdmin() && isValidRoomSecret(incoming());
+        allow delete: if isValidId(secretId) && isAdmin();
+      }
+
+      match /slots/{slotUserId} {
+        allow get: if isValidId(slotUserId) && isSignedIn() && (isOwner(slotUserId) || isAdmin());
+        allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+        allow create: if isValidId(slotUserId) && isSignedIn() && isValidSlot(incoming()) && (isOwner(slotUserId) || isAdmin());
+        allow update: if isValidId(slotUserId) && isAdmin() && isValidSlot(incoming());
+        allow delete: if isValidId(slotUserId) && isAdmin();
+      }
+    }
+
+    match /deposits/{depositId} {
+      allow get: if isValidId(depositId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isValidId(depositId) && isSignedIn() && isValidDeposit(incoming()) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'pending';
+      allow update: if isValidId(depositId) && isSignedIn() && isValidDeposit(incoming()) && (
+        isAdmin() ||
+        (
+          existing().userId == request.auth.uid &&
+          existing().status == 'pending' &&
+          incoming().userId == existing().userId &&
+          incoming().amount == existing().amount &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'utr', 'promoBonusCredited', 'paidAtMillis', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(depositId) && isAdmin();
+    }
+
+    match /withdrawals/{withdrawalId} {
+      allow get: if isValidId(withdrawalId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isValidId(withdrawalId) && isSignedIn() && isValidWithdrawal(incoming()) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'pending';
+      allow update: if isValidId(withdrawalId) && isAdmin() && isValidWithdrawal(incoming()) &&
+                       existing().status == 'pending';
+      allow delete: if isValidId(withdrawalId) && isAdmin();
+    }
+
+    match /coupons/{code} {
+      allow get: if isValidId(code) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(code) && isAdmin() && isValidCoupon(incoming());
+      allow update: if isValidId(code) && isSignedIn() && isValidCoupon(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['usedCount', 'totalDiscountGiven', 'updatedAt']) &&
+          incoming().usedCount == existing().usedCount + 1 &&
+          incoming().usedCount <= existing().maxGlobalUses
+        )
+      );
+      allow delete: if isValidId(code) && isAdmin();
+
+      match /redemptions/{redemptionId} {
+        allow get: if isValidId(redemptionId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+        allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+        allow create: if isValidId(redemptionId) && isSignedIn() && isValidCouponRedemption(incoming()) &&
+                         incoming().userId == request.auth.uid;
+        allow update, delete: if isValidId(redemptionId) && isAdmin();
+      }
+    }
+
+    match /referrals/{referralId} {
+      allow get: if isValidId(referralId) && isSignedIn() && (
+        existing().referrerUid == request.auth.uid ||
+        existing().referredUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.referrerUid == request.auth.uid ||
+        resource.data.referredUid == request.auth.uid
+      );
+      allow create: if isValidId(referralId) && isSignedIn() && isValidReferralRecord(incoming()) && (
+        isAdmin() ||
+        (referralId == request.auth.uid && incoming().referredUid == request.auth.uid)
+      );
+      allow update: if isValidId(referralId) && isAdmin() && isValidReferralRecord(incoming());
+      allow delete: if isValidId(referralId) && isAdmin();
+    }
+
+    match /tickets/{ticketId} {
+      allow get: if isValidId(ticketId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isValidId(ticketId) && isSignedIn() && isValidTicket(incoming()) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'open';
+      allow update: if isValidId(ticketId) && isSignedIn() && isValidTicket(incoming()) && (
+        isAdmin() ||
+        (
+          existing().userId == request.auth.uid &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(ticketId) && isAdmin();
+
+      match /messages/{msgId} {
+        allow get, list: if isSignedIn() && (
+          isAdmin() ||
+          get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid
+        );
+        allow create: if isValidId(msgId) && isSignedIn() && isValidTicketMessage(incoming()) && (
+          isAdmin() ||
+          (
+            get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid &&
+            incoming().senderUid == request.auth.uid &&
+            incoming().senderRole == 'user'
+          )
+        );
+        allow update, delete: if isValidId(msgId) && isAdmin();
+      }
+    }
+
+    match /broadcasts/{broadcastId} {
+      allow get: if isValidId(broadcastId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(broadcastId) && isAdmin() && isValidBroadcast(incoming());
+      allow delete: if isValidId(broadcastId) && isAdmin();
+    }
+
+    match /cms_banners/{bannerId} {
+      allow get: if isValidId(bannerId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(bannerId) && isAdmin() && isValidCmsBanner(incoming());
+      allow delete: if isValidId(bannerId) && isAdmin();
+    }
+
+    match /app_config/{configId} {
+      allow get: if isValidId(configId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update, delete: if isValidId(configId) && isAdmin();
+    }
+
+    match /staff_roles/{uid} {
+      allow get: if isValidId(uid) && isSignedIn() && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isValidId(uid) && isSuperAdmin() && isValidStaffRole(incoming());
+      allow delete: if isValidId(uid) && isSuperAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(logId) && isAdmin() && isValidAuditLog(incoming());
+      allow update, delete: if false;
+    }
+
+    match /push_devices/{deviceId} {
+      allow get: if isValidId(deviceId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create, update: if isValidId(deviceId) && isSignedIn() && incoming().userId == request.auth.uid && isValidPushDevice(incoming());
+      allow delete: if isValidId(deviceId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+    }
+  }
+}

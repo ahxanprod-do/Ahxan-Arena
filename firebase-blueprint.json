@@ -1,0 +1,494 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Authenticated esports player profile, segregated wallets, referral stats, and RBAC metadata.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "Verified Google account email" },
+        "displayName": { "type": "string", "description": "Player display name" },
+        "photoUrl": { "type": "string", "description": "Profile avatar URL" },
+        "inGameName": { "type": "string", "description": "Default IGN for tournaments" },
+        "gameUid": { "type": "string", "description": "Default Game UID" },
+        "depositBalance": { "type": "number", "description": "Deposit wallet balance in INR" },
+        "winningBalance": { "type": "number", "description": "Withdrawable winnings balance in INR" },
+        "bonusBalance": { "type": "number", "description": "Promo and referral bonus balance in INR" },
+        "totalWinnings": { "type": "number", "description": "Lifetime tournament winnings" },
+        "totalKills": { "type": "integer", "description": "Lifetime tournament kills" },
+        "matchesPlayed": { "type": "integer", "description": "Total matches joined" },
+        "referralCode": { "type": "string", "description": "Unique shareable referral code" },
+        "referredByCode": { "type": "string", "description": "Referral code used on signup" },
+        "referredByUid": { "type": "string", "description": "Referrer UID" },
+        "referralQualified": { "type": "boolean", "description": "Whether referral trigger has fired" },
+        "referralCount": { "type": "integer", "description": "Qualified referral count" },
+        "referralEarnings": { "type": "number", "description": "Total earned from referrals" },
+        "streakDays": { "type": "integer", "description": "Daily check-in streak count" },
+        "lastCheckInDay": { "type": "string", "description": "YYYY-MM-DD of last daily check-in" },
+        "role": { "type": "string", "enum": ["user", "staff", "admin"] },
+        "banned": { "type": "boolean", "description": "Account ban flag" },
+        "banReason": { "type": "string", "description": "Ban reason if banned" },
+        "pushEnabled": { "type": "boolean", "description": "Mobile shutter push toggle" },
+        "deviceLabel": { "type": "string", "description": "Device model label" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "displayName", "depositBalance", "winningBalance", "bonusBalance", "referralCode", "role", "banned", "createdAt", "updatedAt"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public non-PII leaderboard statistics.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "totalWinnings": { "type": "number" },
+        "totalKills": { "type": "integer" },
+        "matchesPlayed": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "totalWinnings", "totalKills", "matchesPlayed", "updatedAt"]
+    },
+    "ReferralCodeLookup": {
+      "title": "ReferralCodeLookup",
+      "description": "Non-PII lookup from referral code to referrer UID.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "ownerUid", "ownerName", "createdAt"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "Esports tournament / match event.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "game": { "type": "string" },
+        "mode": { "type": "string", "enum": ["Solo", "Duo", "Squad"] },
+        "mapName": { "type": "string" },
+        "entryType": { "type": "string", "enum": ["Paid", "Free"] },
+        "entryFee": { "type": "number" },
+        "prizePool": { "type": "number" },
+        "perKillReward": { "type": "number" },
+        "maxSlots": { "type": "integer" },
+        "filledSlots": { "type": "integer" },
+        "status": { "type": "string", "enum": ["upcoming", "live", "completed", "cancelled"] },
+        "scheduledAtMillis": { "type": "integer" },
+        "bannerKey": { "type": "string" },
+        "rulesText": { "type": "string" },
+        "prizeBreakdown": { "type": "string" },
+        "roomPublished": { "type": "boolean" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "game", "mode", "entryType", "entryFee", "prizePool", "maxSlots", "filledSlots", "status", "scheduledAtMillis", "roomPublished", "createdAt", "updatedAt"]
+    },
+    "RoomSecret": {
+      "title": "RoomSecret",
+      "description": "Room ID and Password visible only to joined players and admins.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "roomPassword": { "type": "string" },
+        "serverRegion": { "type": "string" },
+        "publishedAtMillis": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "roomPassword", "updatedAt"]
+    },
+    "MatchSlot": {
+      "title": "MatchSlot",
+      "description": "Player slot registration and scorecard.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "matchId": { "type": "string" },
+        "matchTitle": { "type": "string" },
+        "displayName": { "type": "string" },
+        "inGameName": { "type": "string" },
+        "gameUid": { "type": "string" },
+        "squadMembers": { "type": "array" },
+        "slotNumber": { "type": "integer" },
+        "entryPaid": { "type": "number" },
+        "depositUsed": { "type": "number" },
+        "winningUsed": { "type": "number" },
+        "bonusUsed": { "type": "number" },
+        "couponCodeUsed": { "type": "string" },
+        "discountAmount": { "type": "number" },
+        "kills": { "type": "integer" },
+        "rank": { "type": "integer" },
+        "prizeWon": { "type": "number" },
+        "status": { "type": "string", "enum": ["joined", "kicked", "refunded", "settled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "matchId", "inGameName", "gameUid", "slotNumber", "entryPaid", "status", "createdAt", "updatedAt"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Immutable ledger entry for user wallet balances.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "direction": { "type": "string", "enum": ["credit", "debit"] },
+        "walletBucket": { "type": "string", "enum": ["deposit", "winning", "bonus"] },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "referenceId": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "amount", "direction", "walletBucket", "title", "status", "createdAt"]
+    },
+    "DepositOrder": {
+      "title": "DepositOrder",
+      "description": "PayZapi deposit order with check-payment status and promo bonus tracking.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "clientOrderId": { "type": "string" },
+        "payzapiOrderId": { "type": "string" },
+        "amount": { "type": "number" },
+        "provider": { "type": "string", "enum": ["fampay", "paytm", "bharatpe", "binance"] },
+        "promoCode": { "type": "string" },
+        "expectedPromoBonus": { "type": "number" },
+        "promoBonusCredited": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "completed", "expired", "failed"] },
+        "utr": { "type": "string" },
+        "qrCodeUrl": { "type": "string" },
+        "upiIntentUrl": { "type": "string" },
+        "checkoutUrl": { "type": "string" },
+        "expiryMillis": { "type": "integer" },
+        "paidAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "clientOrderId", "payzapiOrderId", "amount", "provider", "status", "expiryMillis", "createdAt", "updatedAt"]
+    },
+    "WithdrawalRequest": {
+      "title": "WithdrawalRequest",
+      "description": "User withdrawal request for UPI or Binance BEP-20 USDT.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "method": { "type": "string", "enum": ["UPI", "BINANCE_BEP20"] },
+        "destination": { "type": "string" },
+        "grossAmount": { "type": "number" },
+        "feeAmount": { "type": "number" },
+        "netAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "utrOrTxHash": { "type": "string" },
+        "rejectReason": { "type": "string" },
+        "processedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "method", "destination", "grossAmount", "feeAmount", "netAmount", "status", "createdAt", "updatedAt"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Deposit promo code or tournament entry discount coupon.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "couponType": { "type": "string", "enum": ["deposit_bonus", "match_discount"] },
+        "valueType": { "type": "string", "enum": ["flat", "percentage"] },
+        "value": { "type": "number" },
+        "minAmount": { "type": "number" },
+        "maxCap": { "type": "number" },
+        "maxGlobalUses": { "type": "integer" },
+        "maxPerUserUses": { "type": "integer" },
+        "usedCount": { "type": "integer" },
+        "audience": { "type": "string", "enum": ["all", "new_users"] },
+        "active": { "type": "boolean" },
+        "expiresAtMillis": { "type": "integer" },
+        "totalDiscountGiven": { "type": "number" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "couponType", "valueType", "value", "minAmount", "maxCap", "maxGlobalUses", "maxPerUserUses", "usedCount", "audience", "active", "createdAt", "updatedAt"]
+    },
+    "CouponRedemption": {
+      "title": "CouponRedemption",
+      "description": "Audit record of a user redeeming a coupon.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "code": { "type": "string" },
+        "orderOrMatchId": { "type": "string" },
+        "amount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "code", "orderOrMatchId", "amount", "createdAt"]
+    },
+    "ReferralRecord": {
+      "title": "ReferralRecord",
+      "description": "Referral qualification and anti-fraud tracking record keyed by referredUid.",
+      "type": "object",
+      "properties": {
+        "referrerUid": { "type": "string" },
+        "referrerCode": { "type": "string" },
+        "referredUid": { "type": "string" },
+        "referredName": { "type": "string" },
+        "deviceFingerprint": { "type": "string" },
+        "triggerType": { "type": "string" },
+        "rewardAmount": { "type": "number" },
+        "friendBonus": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "qualified", "blocked"] },
+        "flaggedFraud": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["referrerUid", "referrerCode", "referredUid", "status", "flaggedFraud", "createdAt", "updatedAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Support desk or hacker report ticket.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "category": { "type": "string" },
+        "subject": { "type": "string" },
+        "matchId": { "type": "string" },
+        "reportedPlayerUid": { "type": "string" },
+        "screenshotBase64": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in_progress", "resolved", "closed"] },
+        "lastMessage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "category", "subject", "status", "createdAt", "updatedAt"]
+    },
+    "TicketMessage": {
+      "title": "TicketMessage",
+      "description": "Reply inside a support ticket thread.",
+      "type": "object",
+      "properties": {
+        "ticketId": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string", "enum": ["user", "admin"] },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ticketId", "senderUid", "senderRole", "text", "createdAt"]
+    },
+    "UserNotification": {
+      "title": "UserNotification",
+      "description": "Targeted user notification triggering mobile shutter alert.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "route": { "type": "string" },
+        "category": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "body", "read", "createdAt"]
+    },
+    "BroadcastNotification": {
+      "title": "BroadcastNotification",
+      "description": "Admin Notification Studio broadcast payload.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "redirectRoute": { "type": "string" },
+        "priority": { "type": "string" },
+        "audienceType": { "type": "string" },
+        "audienceTargetId": { "type": "string" },
+        "sentByEmail": { "type": "string" },
+        "deliveredCount": { "type": "integer" },
+        "failedCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "body", "audienceType", "createdAt"]
+    },
+    "CmsBanner": {
+      "title": "CmsBanner",
+      "description": "Home carousel promo banner.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "drawableKey": { "type": "string" },
+        "redirectRoute": { "type": "string" },
+        "active": { "type": "boolean" },
+        "sortOrder": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "active", "sortOrder", "createdAt"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Platform configuration document (general, gateway, referral).",
+      "type": "object",
+      "properties": {
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "StaffRole": {
+      "title": "StaffRole",
+      "description": "Granular RBAC permissions for sub-admins and moderators.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "roleLabel": { "type": "string" },
+        "manageMatches": { "type": "boolean" },
+        "publishRooms": { "type": "boolean" },
+        "verifyDeposits": { "type": "boolean" },
+        "approveWithdrawals": { "type": "boolean" },
+        "manageCoupons": { "type": "boolean" },
+        "replyTickets": { "type": "boolean" },
+        "sendPush": { "type": "boolean" },
+        "manageUsers": { "type": "boolean" },
+        "systemSettings": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "roleLabel", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable admin/staff security audit trail.",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string" },
+        "adminEmail": { "type": "string" },
+        "actionType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "summary": { "type": "string" },
+        "oldValue": { "type": "string" },
+        "newValue": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminUid", "adminEmail", "actionType", "summary", "createdAt"]
+    },
+    "PushDevice": {
+      "title": "PushDevice",
+      "description": "Registered user device for mobile shutter alerts.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "deviceName": { "type": "string" },
+        "platform": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "deviceName", "platform", "enabled", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles and segregated wallets."
+    },
+    "/users/{userId}/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/WalletTransaction" },
+      "description": "User wallet ledger."
+    },
+    "/users/{userId}/joined_matches/{matchId}": {
+      "schema": { "$ref": "#/entities/MatchSlot" },
+      "description": "User joined tournament registrations."
+    },
+    "/users/{userId}/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/UserNotification" },
+      "description": "User targeted shutter notifications."
+    },
+    "/leaderboard/{userId}": {
+      "schema": { "$ref": "#/entities/LeaderboardEntry" },
+      "description": "Non-PII global leaderboard entries."
+    },
+    "/referral_codes/{code}": {
+      "schema": { "$ref": "#/entities/ReferralCodeLookup" },
+      "description": "Referral code lookup table."
+    },
+    "/tournaments/{matchId}": {
+      "schema": { "$ref": "#/entities/Tournament" },
+      "description": "Tournament matches."
+    },
+    "/tournaments/{matchId}/secrets/{secretId}": {
+      "schema": { "$ref": "#/entities/RoomSecret" },
+      "description": "Room ID and Password gated to joined players."
+    },
+    "/tournaments/{matchId}/slots/{slotUserId}": {
+      "schema": { "$ref": "#/entities/MatchSlot" },
+      "description": "Slot roster for a tournament."
+    },
+    "/deposits/{depositId}": {
+      "schema": { "$ref": "#/entities/DepositOrder" },
+      "description": "PayZapi deposit orders."
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": { "$ref": "#/entities/WithdrawalRequest" },
+      "description": "Withdrawal payout requests."
+    },
+    "/coupons/{code}": {
+      "schema": { "$ref": "#/entities/Coupon" },
+      "description": "Deposit promo codes and match discount coupons."
+    },
+    "/coupons/{code}/redemptions/{redemptionId}": {
+      "schema": { "$ref": "#/entities/CouponRedemption" },
+      "description": "Coupon redemption records."
+    },
+    "/referrals/{referralId}": {
+      "schema": { "$ref": "#/entities/ReferralRecord" },
+      "description": "Referral qualification records."
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SupportTicket" },
+      "description": "Support tickets and hacker reports."
+    },
+    "/tickets/{ticketId}/messages/{msgId}": {
+      "schema": { "$ref": "#/entities/TicketMessage" },
+      "description": "Ticket chat thread messages."
+    },
+    "/broadcasts/{broadcastId}": {
+      "schema": { "$ref": "#/entities/BroadcastNotification" },
+      "description": "Admin Notification Studio broadcasts."
+    },
+    "/cms_banners/{bannerId}": {
+      "schema": { "$ref": "#/entities/CmsBanner" },
+      "description": "Home promo carousel banners."
+    },
+    "/app_config/{configId}": {
+      "schema": { "$ref": "#/entities/AppConfig" },
+      "description": "Platform configuration docs (general, gateway, referral)."
+    },
+    "/staff_roles/{uid}": {
+      "schema": { "$ref": "#/entities/StaffRole" },
+      "description": "Sub-admin and staff permissions."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable admin audit log."
+    },
+    "/push_devices/{deviceId}": {
+      "schema": { "$ref": "#/entities/PushDevice" },
+      "description": "Registered push notification devices."
+    }
+  }
+}
