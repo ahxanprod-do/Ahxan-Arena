@@ -286,6 +286,7 @@ fun AdminGatewayDepositsModule(
     busy: Boolean,
     adminVm: AdminViewModel
 ) {
+    val context = LocalContext.current
     var statusFilter by remember { mutableStateOf("All") }
     var apiOverride by remember(gatewayConfig) { mutableStateOf(gatewayConfig.payzapiApiKeyOverride) }
     var resendOverride by remember(gatewayConfig) { mutableStateOf(gatewayConfig.resendApiKey) }
@@ -331,6 +332,8 @@ fun AdminGatewayDepositsModule(
                     text = if (busy) "Saving..." else "Save Gateway Config",
                     enabled = !busy,
                     onClick = {
+                        context.getSharedPreferences("ahxan_secrets", android.content.Context.MODE_PRIVATE)
+                            .edit().putString("resend_api_key", resendOverride.trim()).apply()
                         adminVm.saveGatewayConfig(
                             gatewayConfig.copy(
                                 payzapiApiKeyOverride = apiOverride.trim(),

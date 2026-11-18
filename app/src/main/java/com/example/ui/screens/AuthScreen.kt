@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -111,6 +112,9 @@ fun AuthScreen(
     var regOtpInput by remember { mutableStateOf("") }
     var codeSentStage by remember { mutableStateOf(false) }
     var resendMissingConfig by remember { mutableStateOf(false) }
+    val secretPrefs = remember { context.getSharedPreferences("ahxan_secrets", Context.MODE_PRIVATE) }
+    var resendKeyInput by remember { mutableStateOf(secretPrefs.getString("resend_api_key", "").orEmpty()) }
+    var showKeyConfigBox by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         AuthHelper.attemptAutoSignIn(
@@ -430,14 +434,20 @@ fun AuthScreen(
                                         else -> {
                                             isLoading = true
                                             scope.launch {
-                                                val res = otpClient.sendVerificationCode(regEmail.trim(), regUsername.trim())
+                                                val res = otpClient.sendVerificationCode(
+                                                    email = regEmail.trim(),
+                                                    username = regUsername.trim(),
+                                                    overrideKey = resendKeyInput.trim()
+                                                )
                                                 isLoading = false
                                                 if (res.sent) {
                                                     codeSentStage = true
                                                     resendMissingConfig = false
+                                                    showKeyConfigBox = false
                                                     infoMsg = res.message
                                                 } else if (res.missingConfig) {
                                                     resendMissingConfig = true
+                                                    showKeyConfigBox = true
                                                     errorMsg = res.message
                                                 } else {
                                                     errorMsg = res.message
@@ -457,6 +467,84 @@ fun AuthScreen(
                                     Icon(Icons.Default.MarkEmailRead, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(8.dp))
                                     Text("Send Code on Email", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            if (!showKeyConfigBox && otpClient.resolveResendKey(resendKeyInput).isBlank()) {
+                                TextButton(
+                                    onClick = { showKeyConfigBox = true },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Add Resend API Key Value", color = AmberWarning)
+                                }
+                            }
+
+                            if (showKeyConfigBox || resendMissingConfig) {
+                                Spacer(Modifier.height(10.dp))
+                                Surface(
+                                    color = ObsidianElevated,
+                                    border = BorderStroke(1.dp, AmberWarning.copy(alpha = 0.55f)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = "Configure Email OTP Key (Resend)",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = AmberWarning,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(Modifier.height(6.dp))
+                                        OutlinedTextField(
+                                            value = resendKeyInput,
+                                            onValueChange = { resendKeyInput = it },
+                                            label = { Text("Paste Resend API Key (re_...)") },
+                                            leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = AmberWarning) },
+                                            singleLine = true,
+                                            colors = fieldColors,
+                                            modifier = Modifier.fillMaxWidth().testTag("reg_resend_key_input")
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        Button(
+                                            onClick = {
+                                                val cleanKey = resendKeyInput.trim()
+                                                if (!cleanKey.startsWith("re_")) {
+                                                    errorMsg = "Enter a valid Resend API Key starting with re_..."
+                                                    return@Button
+                                                }
+                                                secretPrefs.edit().putString("resend_api_key", cleanKey).apply()
+                                                errorMsg = null
+                                                if (regEmail.contains("@") && regEmail.contains(".")) {
+                                                    isLoading = true
+                                                    scope.launch {
+                                                        val res = otpClient.sendVerificationCode(
+                                                            email = regEmail.trim(),
+                                                            username = regUsername.trim(),
+                                                            overrideKey = cleanKey
+                                                        )
+                                                        isLoading = false
+                                                        if (res.sent) {
+                                                            codeSentStage = true
+                                                            resendMissingConfig = false
+                                                            showKeyConfigBox = false
+                                                            infoMsg = res.message
+                                                        } else {
+                                                            errorMsg = res.message
+                                                        }
+                                                    }
+                                                } else {
+                                                    showKeyConfigBox = false
+                                                    infoMsg = "Resend API Key saved! Fill your details above and tap Send Code on Email."
+                                                }
+                                            },
+                                            enabled = !isLoading && resendKeyInput.trim().isNotBlank(),
+                                            colors = ButtonDefaults.buttonColors(containerColor = AmberWarning, contentColor = ObsidianBg),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("reg_save_key_send_otp_btn")
+                                        ) {
+                                            Text("Save Key & Send Email OTP", fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 }
                             }
 
@@ -514,7 +602,11 @@ fun AuthScreen(
                                 TextButton(onClick = {
                                     isLoading = true
                                     scope.launch {
-                                        val res = otpClient.sendVerificationCode(regEmail.trim(), regUsername.trim())
+                                        val res = otpClient.sendVerificationCode(
+                                            email = regEmail.trim(),
+                                            username = regUsername.trim(),
+                                            overrideKey = resendKeyInput.trim()
+                                        )
                                         isLoading = false
                                         if (res.sent) infoMsg = res.message else errorMsg = res.message
                                     }

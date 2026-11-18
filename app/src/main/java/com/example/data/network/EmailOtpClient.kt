@@ -29,9 +29,9 @@ class EmailOtpClient {
     private var activeCode: String = ""
     private var expiresAtMillis: Long = 0L
 
-    fun resolveResendKey(adminOverrideKey: String): String {
-        val override = adminOverrideKey.trim()
-        if (override.isNotEmpty()) return override
+    fun resolveResendKey(overrideKey: String): String {
+        val override = overrideKey.trim()
+        if (override.isNotEmpty() && override != "MY_RESEND_API_KEY") return override
         val buildKey = runCatching { BuildConfig.RESEND_API_KEY.trim() }.getOrDefault("")
         return if (buildKey == "MY_RESEND_API_KEY") "" else buildKey
     }
@@ -39,19 +39,19 @@ class EmailOtpClient {
     suspend fun sendVerificationCode(
         email: String,
         username: String,
-        adminOverrideKey: String = ""
+        overrideKey: String = ""
     ): EmailOtpSendResult = withContext(Dispatchers.IO) {
         val cleanEmail = email.trim()
         if (!cleanEmail.contains("@") || !cleanEmail.contains(".")) {
             return@withContext EmailOtpSendResult(sent = false, message = "Enter a valid email address.")
         }
 
-        val apiKey = resolveResendKey(adminOverrideKey)
+        val apiKey = resolveResendKey(overrideKey)
         if (apiKey.isBlank()) {
             return@withContext EmailOtpSendResult(
                 sent = false,
                 missingConfig = true,
-                message = "Email OTP service (RESEND_API_KEY) is not configured in AI Studio Secrets or Admin Settings. You can verify directly using Google Identity below."
+                message = "Resend API Key is not set yet. Paste your Resend key below or add RESEND_API_KEY in AI Studio Secrets."
             )
         }
 
