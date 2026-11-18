@@ -22,6 +22,7 @@ data class UserProfile(
     val photoUrl: String? = null,
     val inGameName: String = "",
     val gameUid: String = "",
+    val phoneNumber: String = "",
     val depositBalance: Double = 0.0,
     val winningBalance: Double = 0.0,
     val bonusBalance: Double = 0.0,
@@ -323,6 +324,10 @@ data class GeneralConfig(
     val checkinEnabled: Boolean = true,
     val checkinRewards: List<Long> = listOf(5L, 8L, 10L, 12L, 15L, 20L, 50L),
     val bonusUsablePercent: Long = 10L,
+    val matchesHeroBannerUrl: String = "",
+    val matchesHeroBannerKey: String = "bgmi",
+    val matchesHeroTitle: String = "CYBER ESPORTS CHAMPIONSHIPS",
+    val matchesHeroSubtitle: String = "Daily Competitive Scrims • Instant PayZapi Payouts",
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
 
@@ -331,6 +336,7 @@ data class GeneralConfig(
 data class GatewayConfig(
     @DocumentId val id: String = "",
     val payzapiApiKeyOverride: String = "",
+    val resendApiKey: String = "",
     val fampayEnabled: Boolean = true,
     val paytmEnabled: Boolean = true,
     val bharatpeEnabled: Boolean = true,

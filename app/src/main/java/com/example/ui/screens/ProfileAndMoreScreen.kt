@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.CardGiftcard
@@ -69,7 +71,7 @@ fun ProfileAndMoreScreen(
     generalConfig: GeneralConfig,
     isAdminAccess: Boolean,
     busy: Boolean,
-    onSaveProfile: (String, String, String, Boolean) -> Unit,
+    onSaveProfile: (String, String, String, String, Boolean) -> Unit,
     onSendTestPush: () -> Unit,
     onNavigate: (String) -> Unit,
     onOpenAdminCenter: () -> Unit
@@ -81,6 +83,7 @@ fun ProfileAndMoreScreen(
     var displayName by remember(user?.displayName) { mutableStateOf(user?.displayName.orEmpty()) }
     var inGameName by remember(user?.inGameName) { mutableStateOf(user?.inGameName.orEmpty()) }
     var gameUid by remember(user?.gameUid) { mutableStateOf(user?.gameUid.orEmpty()) }
+    var phoneNumber by remember(user?.phoneNumber) { mutableStateOf(user?.phoneNumber.orEmpty()) }
     var pushEnabled by remember(user?.pushEnabled) { mutableStateOf(user?.pushEnabled ?: true) }
     var hasNotifPerm by remember { mutableStateOf(ArenaNotificationHelper.hasNotificationPermission(context)) }
 
@@ -194,11 +197,20 @@ fun ProfileAndMoreScreen(
                 OutlinedTextField(value = inGameName, onValueChange = { inGameName = it }, label = { Text("Default In-Game Name (IGN)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = gameUid, onValueChange = { gameUid = it }, label = { Text("Default Game UID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it.filter { ch -> ch.isDigit() || ch == '+' || ch == ' ' }.take(16) },
+                    label = { Text("Phone Number") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth().testTag("profile_phone_input")
+                )
                 Spacer(Modifier.height(12.dp))
                 NeonPrimaryButton(
                     text = if (busy) "Saving..." else "Save Profile",
                     enabled = !busy,
-                    onClick = { onSaveProfile(displayName, inGameName, gameUid, pushEnabled) },
+                    onClick = { onSaveProfile(displayName, inGameName, gameUid, phoneNumber, pushEnabled) },
                     modifier = Modifier.fillMaxWidth().testTag("save_profile_btn")
                 )
             }

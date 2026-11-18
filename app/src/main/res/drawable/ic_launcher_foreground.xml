@@ -1,8 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/ahxan_arena_icon"
-        android:gravity="center" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Centered within 66dp safe zone (coords ~21..87) -->
+    <!-- Outer Cyber Shield Base -->
+    <path
+        android:fillColor="#0B1328"
+        android:pathData="M54,22 L81,32 L78,63 L54,86 L30,63 L27,32 Z" />
+
+    <!-- Neon Cyan Shield Ring -->
+    <path
+        android:fillColor="#00F0FF"
+        android:pathData="M54,22 L81,32 L78,63 L54,86 L30,63 L27,32 Z M54,26.5 L31.5,35 L34,60.5 L54,80 L74,60.5 L76.5,35 Z" />
+
+    <!-- Electric Violet Side Blades -->
+    <path
+        android:fillColor="#9333EA"
+        android:pathData="M35,39 L45,34 L42,57 L36,60 Z" />
+    <path
+        android:fillColor="#9333EA"
+        android:pathData="M73,39 L63,34 L66,57 L72,60 Z" />
+
+    <!-- Crisp White 'A' Apex -->
+    <path
+        android:fillColor="#F3F7FF"
+        android:pathData="M54,31 L69,68 L60.5,68 L57.5,59 L50.5,59 L47.5,68 L39,68 Z M54,43 L51.8,52 L56.2,52 Z" />
+
+    <!-- Emerald Core Diamond -->
+    <path
+        android:fillColor="#00FF9D"
+        android:pathData="M54,26.5 L57,30 L54,33.5 L51,30 Z" />
+</vector>

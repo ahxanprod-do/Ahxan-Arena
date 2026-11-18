@@ -123,12 +123,36 @@ class ArenaViewModel(
         viewModelScope.launch {
             val fbUser = Firebase.auth.currentUser
             if (fbUser != null) {
-                val pendingRef = appContext.getSharedPreferences("ahxan_app", Context.MODE_PRIVATE)
-                    .getString("pending_ref_code", "").orEmpty()
-                val profileRes = userRepo.ensureUserProfile(fbUser, pendingRef)
-                if (profileRes.isSuccess && pendingRef.isNotBlank()) {
-                    appContext.getSharedPreferences("ahxan_app", Context.MODE_PRIVATE)
-                        .edit().remove("pending_ref_code").apply()
+                val appPrefs = appContext.getSharedPreferences("ahxan_app", Context.MODE_PRIVATE)
+                val pendingRef = appPrefs.getString("pending_ref_code", "").orEmpty()
+                val pendingUsername = appPrefs.getString("pending_reg_username", "").orEmpty()
+                val pendingIgn = appPrefs.getString("pending_reg_ign", "").orEmpty()
+                val pendingGameUid = appPrefs.getString("pending_reg_uid", "").orEmpty()
+                val pendingPhone = appPrefs.getString("pending_reg_phone", "").orEmpty()
+                val profileRes = userRepo.ensureUserProfile(
+                    firebaseUser = fbUser,
+                    pendingReferralCode = pendingRef,
+                    pendingUsername = pendingUsername,
+                    pendingGameName = pendingIgn,
+                    pendingGameUid = pendingGameUid,
+                    pendingPhone = pendingPhone
+                )
+                if (profileRes.isSuccess) {
+                    if (pendingRef.isNotBlank() && profileRes.getOrNull()?.referredByUid.isNullOrBlank()) {
+                        val isCoupon = userRepo.checkPromoCouponExists(pendingRef)
+                        if (isCoupon) {
+                            val cleanCode = pendingRef.trim().uppercase()
+                            appPrefs.edit().putString("pending_promo_code", cleanCode).apply()
+                            showMsg(true, "Promo code $cleanCode saved! Apply it in Wallet or Match Join.")
+                        }
+                    }
+                    appPrefs.edit()
+                        .remove("pending_ref_code")
+                        .remove("pending_reg_username")
+                        .remove("pending_reg_ign")
+                        .remove("pending_reg_uid")
+                        .remove("pending_reg_phone")
+                        .apply()
                 }
                 if (fbUser.email.equals("ahxantalib@gmail.com", ignoreCase = true) && fbUser.isEmailVerified) {
                     adminRepo.seedInitialDataIfEmpty()
@@ -203,10 +227,10 @@ class ArenaViewModel(
         _statusBanner.value = ok to msg
     }
 
-    fun updateProfile(displayName: String, ign: String, gameUid: String, pushEnabled: Boolean) {
+    fun updateProfile(displayName: String, ign: String, gameUid: String, phoneNumber: String, pushEnabled: Boolean) {
         viewModelScope.launch {
             _busy.value = true
-            val res = userRepo.updateProfile(displayName, ign, gameUid, pushEnabled)
+            val res = userRepo.updateProfile(displayName, ign, gameUid, phoneNumber, pushEnabled)
             _busy.value = false
             res.onSuccess { showMsg(true, "Profile updated successfully") }
                 .onFailure { showMsg(false, it.localizedMessage ?: "Failed to update profile") }

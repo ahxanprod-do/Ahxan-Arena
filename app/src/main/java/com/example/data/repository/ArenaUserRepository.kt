@@ -41,7 +41,14 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
     private fun sanitizeId(raw: String): String =
         raw.replace(Regex("[^a-zA-Z0-9_\\-]"), "").take(48).ifBlank { "ID_${System.currentTimeMillis()}" }
 
-    suspend fun ensureUserProfile(firebaseUser: FirebaseUser, pendingReferralCode: String = ""): Result<UserProfile> {
+    suspend fun ensureUserProfile(
+        firebaseUser: FirebaseUser,
+        pendingReferralCode: String = "",
+        pendingUsername: String = "",
+        pendingGameName: String = "",
+        pendingGameUid: String = "",
+        pendingPhone: String = ""
+    ): Result<UserProfile> {
         val uid = firebaseUser.uid
         val docPath = "users/$uid"
         return try {
@@ -50,6 +57,17 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
             if (snap.exists()) {
                 val existing = snap.toObject(UserProfile::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
                 if (existing != null) {
+                    if (pendingUsername.isNotBlank() || pendingGameName.isNotBlank() || pendingGameUid.isNotBlank() || pendingPhone.isNotBlank()) {
+                        userRef.update(
+                            mapOf(
+                                "displayName" to pendingUsername.ifBlank { existing.displayName }.take(80),
+                                "inGameName" to pendingGameName.ifBlank { existing.inGameName }.take(60),
+                                "gameUid" to pendingGameUid.ifBlank { existing.gameUid }.take(60),
+                                "phoneNumber" to pendingPhone.ifBlank { existing.phoneNumber }.take(30),
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        ).await()
+                    }
                     if (pendingReferralCode.isNotBlank() && existing.referredByUid.isBlank()) {
                         applyReferralCode(pendingReferralCode)
                     }
@@ -58,7 +76,12 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
                 }
             }
 
-            val cleanName = firebaseUser.displayName?.take(80)?.ifBlank { "Arena Player" } ?: "Arena Player"
+            val cleanName = pendingUsername.trim().ifBlank {
+                firebaseUser.displayName?.take(80)?.ifBlank { "Arena Player" } ?: "Arena Player"
+            }.take(80)
+            val cleanIgn = pendingGameName.trim().ifBlank { cleanName.take(24) }.take(60)
+            val cleanGameUid = pendingGameUid.trim().take(60)
+            val cleanPhone = pendingPhone.trim().take(30)
             val email = firebaseUser.email.orEmpty()
             val photoUrl = firebaseUser.photoUrl?.toString()?.take(500)
             val generatedCode = ("AX" + uid.take(4) + UUID.randomUUID().toString().take(3)).uppercase()
@@ -72,8 +95,9 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
                 "email" to email,
                 "displayName" to cleanName,
                 "photoUrl" to photoUrl,
-                "inGameName" to cleanName.take(24),
-                "gameUid" to "",
+                "inGameName" to cleanIgn,
+                "gameUid" to cleanGameUid,
+                "phoneNumber" to cleanPhone,
                 "depositBalance" to 0.0,
                 "winningBalance" to 0.0,
                 "bonusBalance" to 0.0,
@@ -127,7 +151,16 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
 
             val created = userRef.get().await()
                 .toObject(UserProfile::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                ?: UserProfile(userId = uid, email = email, displayName = cleanName, referralCode = generatedCode, role = role)
+                ?: UserProfile(
+                    userId = uid,
+                    email = email,
+                    displayName = cleanName,
+                    inGameName = cleanIgn,
+                    gameUid = cleanGameUid,
+                    phoneNumber = cleanPhone,
+                    referralCode = generatedCode,
+                    role = role
+                )
             Result.success(created)
         } catch (e: CancellationException) {
             throw e
@@ -319,7 +352,13 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
                 emit(emptyList())
             }
 
-    suspend fun updateProfile(displayName: String, inGameName: String, gameUid: String, pushEnabled: Boolean): Result<Unit> {
+    suspend fun updateProfile(
+        displayName: String,
+        inGameName: String,
+        gameUid: String,
+        phoneNumber: String,
+        pushEnabled: Boolean
+    ): Result<Unit> {
         val uid = auth.currentUser?.uid ?: return Result.failure(IllegalStateException("Not signed in"))
         val path = "users/$uid"
         return try {
@@ -329,6 +368,7 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
                     "displayName" to displayName.trim().take(80),
                     "inGameName" to inGameName.trim().take(60),
                     "gameUid" to gameUid.trim().take(60),
+                    "phoneNumber" to phoneNumber.trim().take(30),
                     "pushEnabled" to pushEnabled,
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
@@ -387,6 +427,15 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
             handleFirestoreError(e, OperationType.WRITE, "referral_codes/$code")
             Result.failure(e)
         }
+    }
+
+    suspend fun checkPromoCouponExists(rawCode: String): Boolean {
+        val code = rawCode.trim().uppercase().replace(Regex("[^A-Z0-9_\\-]"), "")
+        if (code.length < 3) return false
+        return runCatching {
+            val snap = db.collection("coupons").document(code).get().await()
+            snap.exists() && (snap.getBoolean("active") == true)
+        }.getOrDefault(false)
     }
 
     suspend fun qualifyReferralOnTrigger(

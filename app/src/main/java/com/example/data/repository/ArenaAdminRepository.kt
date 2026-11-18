@@ -274,6 +274,10 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                     "checkinEnabled" to true,
                     "checkinRewards" to listOf(5L, 8L, 10L, 12L, 15L, 20L, 50L),
                     "bonusUsablePercent" to 10L,
+                    "matchesHeroBannerUrl" to "",
+                    "matchesHeroBannerKey" to "bgmi",
+                    "matchesHeroTitle" to "CYBER ESPORTS CHAMPIONSHIPS",
+                    "matchesHeroSubtitle" to "Daily Competitive Scrims • Instant PayZapi Payouts",
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             )
@@ -281,6 +285,7 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                 db.collection("app_config").document("gateway"),
                 mapOf(
                     "payzapiApiKeyOverride" to "",
+                    "resendApiKey" to "",
                     "fampayEnabled" to true,
                     "paytmEnabled" to true,
                     "bharatpeEnabled" to true,
@@ -835,6 +840,7 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
             db.collection("app_config").document("gateway").set(
                 mapOf(
                     "payzapiApiKeyOverride" to config.payzapiApiKeyOverride.trim(),
+                    "resendApiKey" to config.resendApiKey.trim(),
                     "fampayEnabled" to config.fampayEnabled,
                     "paytmEnabled" to config.paytmEnabled,
                     "bharatpeEnabled" to config.bharatpeEnabled,
@@ -1047,6 +1053,10 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                     "checkinEnabled" to config.checkinEnabled,
                     "checkinRewards" to config.checkinRewards,
                     "bonusUsablePercent" to config.bonusUsablePercent,
+                    "matchesHeroBannerUrl" to config.matchesHeroBannerUrl.trim(),
+                    "matchesHeroBannerKey" to config.matchesHeroBannerKey,
+                    "matchesHeroTitle" to config.matchesHeroTitle.trim().take(100),
+                    "matchesHeroSubtitle" to config.matchesHeroSubtitle.trim().take(160),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             ).await()

@@ -59,7 +59,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.asImageBitmap
+import coil.compose.AsyncImage
 import com.example.data.model.Coupon
+import com.example.data.model.GeneralConfig
 import com.example.data.model.MatchSlot
 import com.example.data.model.RoomSecret
 import com.example.data.model.Tournament
@@ -70,6 +73,7 @@ import com.example.ui.components.SlotsProgressBar
 import com.example.ui.components.StatusPill
 import com.example.ui.components.bannerDrawableForKey
 import com.example.ui.theme.AmberWarning
+import com.example.ui.theme.CrimsonDanger
 import com.example.ui.theme.ElectricViolet
 import com.example.ui.theme.EmeraldProfit
 import com.example.ui.theme.NeonCyan
@@ -80,6 +84,7 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.utils.ArenaFormatters
+import com.example.utils.QrCodeUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -87,6 +92,7 @@ import kotlinx.coroutines.launch
 fun TournamentsScreen(
     tournaments: List<Tournament>,
     joinedMatches: List<MatchSlot>,
+    generalConfig: GeneralConfig = GeneralConfig(),
     onSelectTournament: (Tournament) -> Unit
 ) {
     val tabs = listOf("Upcoming", "Live", "Completed")
@@ -105,13 +111,87 @@ fun TournamentsScreen(
         }
     }
 
+    val heroBitmap = remember(generalConfig.matchesHeroBannerUrl) {
+        val raw = generalConfig.matchesHeroBannerUrl.trim()
+        if (raw.isNotEmpty() && !raw.startsWith("http", ignoreCase = true)) {
+            QrCodeUtils.decodeBase64Image(raw)
+        } else null
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
             text = "TOURNAMENTS",
             style = MaterialTheme.typography.headlineMedium,
             color = NeonCyan,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
         )
+
+        // Admin-controlled Matches Hero Banner Image above all matches
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 10.dp)
+                .height(145.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .border(1.dp, NeonCyan.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
+                .testTag("matches_admin_hero_banner")
+        ) {
+            val rawHero = generalConfig.matchesHeroBannerUrl.trim()
+            when {
+                rawHero.startsWith("http", ignoreCase = true) -> {
+                    AsyncImage(
+                        model = rawHero,
+                        contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Tournament Banner" },
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                heroBitmap != null -> {
+                    Image(
+                        bitmap = heroBitmap.asImageBitmap(),
+                        contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Tournament Banner" },
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                else -> {
+                    Image(
+                        painter = painterResource(id = bannerDrawableForKey(generalConfig.matchesHeroBannerKey)),
+                        contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Tournament Banner" },
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.88f))))
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(14.dp)
+            ) {
+                StatusPill(label = "FEATURED ARENA", color = NeonCyan)
+                if (generalConfig.matchesHeroTitle.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = generalConfig.matchesHeroTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = TextPrimary
+                    )
+                }
+                if (generalConfig.matchesHeroSubtitle.isNotBlank()) {
+                    Text(
+                        text = generalConfig.matchesHeroSubtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
+                }
+            }
+        }
 
         TabRow(
             selectedTabIndex = selectedTab,
@@ -222,6 +302,7 @@ fun TournamentDetailSheet(
     var couponCode by remember { mutableStateOf("") }
     var appliedCoupon by remember { mutableStateOf<Coupon?>(null) }
     var couponError by remember { mutableStateOf<String?>(null) }
+    var joinValidationError by remember { mutableStateOf<String?>(null) }
 
     var remainingMillis by remember(match.scheduledAtMillis) {
         mutableStateOf((match.scheduledAtMillis - System.currentTimeMillis()).coerceAtLeast(0L))
@@ -406,17 +487,25 @@ fun TournamentDetailSheet(
                         Spacer(Modifier.height(10.dp))
                         OutlinedTextField(
                             value = ign,
-                            onValueChange = { ign = it },
-                            label = { Text("In-Game Name (IGN)") },
+                            onValueChange = {
+                                ign = it
+                                joinValidationError = null
+                            },
+                            label = { Text("In-Game Name (IGN) *") },
                             singleLine = true,
+                            isError = joinValidationError != null && ign.isBlank(),
                             modifier = Modifier.fillMaxWidth().testTag("join_ign_input")
                         )
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = gameUid,
-                            onValueChange = { gameUid = it },
-                            label = { Text("Game UID / Character ID") },
+                            onValueChange = {
+                                gameUid = it
+                                joinValidationError = null
+                            },
+                            label = { Text("Game UID / Character ID *") },
                             singleLine = true,
+                            isError = joinValidationError != null && gameUid.isBlank(),
                             modifier = Modifier.fillMaxWidth().testTag("join_uid_input")
                         )
                         if (match.mode == "Duo" || match.mode == "Squad") {
@@ -488,19 +577,31 @@ fun TournamentDetailSheet(
                             }
                         }
 
+                        if (joinValidationError != null) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(joinValidationError!!, color = CrimsonDanger, style = MaterialTheme.typography.labelLarge)
+                        }
+
                         Spacer(Modifier.height(14.dp))
                         NeonPrimaryButton(
                             text = if (busy) "Confirming Slot..." else "Confirm & Pay ${ArenaFormatters.formatInr(finalFee)}",
                             enabled = !busy,
                             onClick = {
-                                onJoinMatch(
-                                    match,
-                                    ign,
-                                    gameUid,
-                                    listOf(teammate2, teammate3, teammate4).filter { it.isNotBlank() },
-                                    appliedCoupon?.code ?: "",
-                                    onDismiss
-                                )
+                                when {
+                                    ign.trim().isBlank() -> joinValidationError = "In-Game Name (IGN) is required to join."
+                                    gameUid.trim().length < 3 -> joinValidationError = "Valid Game UID is required to join."
+                                    else -> {
+                                        joinValidationError = null
+                                        onJoinMatch(
+                                            match,
+                                            ign.trim(),
+                                            gameUid.trim(),
+                                            listOf(teammate2, teammate3, teammate4).filter { it.isNotBlank() },
+                                            appliedCoupon?.code ?: "",
+                                            onDismiss
+                                        )
+                                    }
+                                }
                             },
                             modifier = Modifier.fillMaxWidth().testTag("confirm_join_match_btn")
                         )

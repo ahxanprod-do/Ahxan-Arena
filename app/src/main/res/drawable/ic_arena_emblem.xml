@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer Hexagonal Cyber Shield -->
+    <path
+        android:fillColor="#0D152B"
+        android:pathData="M54,10 L88,24 L84,64 L54,96 L24,64 L20,24 Z" />
+
+    <!-- Neon Cyan Shield Rim -->
+    <path
+        android:fillColor="#00F0FF"
+        android:pathData="M54,10 L88,24 L84,64 L54,96 L24,64 L20,24 Z M54,15.5 L25.5,27.5 L29,61.5 L54,88.5 L79,61.5 L82.5,27.5 Z" />
+
+    <!-- Inner Electric Violet Accent Wings -->
+    <path
+        android:fillColor="#8B3DFF"
+        android:pathData="M31,32 L44,26 L40,56 L32,60 Z" />
+    <path
+        android:fillColor="#8B3DFF"
+        android:pathData="M77,32 L64,26 L68,56 L76,60 Z" />
+
+    <!-- Bold Geometric 'A' Crest -->
+    <path
+        android:fillColor="#F3F7FF"
+        android:pathData="M54,23 L73,72 L62.5,72 L58.5,60 L49.5,60 L45.5,72 L35,72 Z M54,39 L51,51 L57,51 Z" />
+
+    <!-- Crown Spark / Emerald Core -->
+    <path
+        android:fillColor="#00FF9D"
+        android:pathData="M54,17 L58,22 L54,26 L50,22 Z" />
+</vector>

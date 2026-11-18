@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -41,9 +43,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.ui.theme.AmberWarning
@@ -64,6 +69,37 @@ fun bannerDrawableForKey(key: String): Int = when (key.lowercase()) {
     "codm" -> R.drawable.img_banner_codm
     "hero" -> R.drawable.img_arena_hero
     else -> R.drawable.img_banner_bgmi
+}
+
+@Composable
+fun ArenaBrandEmblem(
+    modifier: Modifier = Modifier,
+    size: Dp = 76.dp
+) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(size * 0.28f))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF0A1124), Color(0xFF1A1038))
+                )
+            )
+            .border(
+                width = 1.8.dp,
+                brush = Brush.linearGradient(listOf(NeonCyan, ElectricViolet, EmeraldProfit)),
+                shape = RoundedCornerShape(size * 0.28f)
+            )
+            .padding(size * 0.1f),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_arena_emblem),
+            contentDescription = "Ahxan Arena Logo",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
 }
 
 @Composable

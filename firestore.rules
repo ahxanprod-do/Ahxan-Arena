@@ -53,6 +53,7 @@ service cloud.firestore {
              (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
              (!('inGameName' in data) || (data.inGameName is string && data.inGameName.size() <= 60)) &&
              (!('gameUid' in data) || (data.gameUid is string && data.gameUid.size() <= 60)) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 30)) &&
              data.depositBalance is number && data.depositBalance >= 0 &&
              data.winningBalance is number && data.winningBalance >= 0 &&
              data.bonusBalance is number && data.bonusBalance >= 0 &&
@@ -353,7 +354,7 @@ service cloud.firestore {
           incoming().role == existing().role &&
           incoming().banned == existing().banned &&
           (
-            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'inGameName', 'gameUid', 'photoUrl', 'pushEnabled', 'deviceLabel', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'inGameName', 'gameUid', 'phoneNumber', 'photoUrl', 'pushEnabled', 'deviceLabel', 'updatedAt']) ||
             incoming().diff(existing()).affectedKeys().hasOnly(['referredByCode', 'referredByUid', 'updatedAt']) ||
             incoming().diff(existing()).affectedKeys().hasOnly(['bonusBalance', 'streakDays', 'lastCheckInDay', 'updatedAt']) ||
             incoming().diff(existing()).affectedKeys().hasOnly(['depositBalance', 'bonusBalance', 'referralQualified', 'updatedAt']) ||

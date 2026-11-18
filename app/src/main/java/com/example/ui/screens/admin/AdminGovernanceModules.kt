@@ -1,6 +1,13 @@
 package com.example.ui.screens.admin
 
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,11 +21,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,8 +48,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.data.model.AuditLog
 import com.example.data.model.CmsBanner
 import com.example.data.model.GeneralConfig
@@ -50,6 +66,7 @@ import com.example.ui.components.CyberGlassCard
 import com.example.ui.components.NeonPrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.StatusPill
+import com.example.ui.components.bannerDrawableForKey
 import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.CrimsonDanger
 import com.example.ui.theme.ElectricViolet
@@ -61,6 +78,7 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.utils.ArenaFormatters
+import com.example.utils.QrCodeUtils
 import com.example.viewmodel.AdminViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -294,6 +312,7 @@ fun AdminCmsEngagementModule(
     busy: Boolean,
     adminVm: AdminViewModel
 ) {
+    val context = LocalContext.current
     var ticker by remember(generalConfig) { mutableStateOf(generalConfig.tickerText) }
     var maintMode by remember(generalConfig) { mutableStateOf(generalConfig.maintenanceMode) }
     var maintMsg by remember(generalConfig) { mutableStateOf(generalConfig.maintenanceMessage) }
@@ -304,10 +323,100 @@ fun AdminCmsEngagementModule(
     var rulesText by remember(generalConfig) { mutableStateOf(generalConfig.rulesText) }
     var tgUrl by remember(generalConfig) { mutableStateOf(generalConfig.telegramUrl) }
     var dcUrl by remember(generalConfig) { mutableStateOf(generalConfig.discordUrl) }
+    var matchesHeroUrl by remember(generalConfig) { mutableStateOf(generalConfig.matchesHeroBannerUrl) }
+    var matchesHeroKey by remember(generalConfig) { mutableStateOf(generalConfig.matchesHeroBannerKey) }
+    var matchesHeroTitle by remember(generalConfig) { mutableStateOf(generalConfig.matchesHeroTitle) }
+    var matchesHeroSub by remember(generalConfig) { mutableStateOf(generalConfig.matchesHeroSubtitle) }
     var editingBanner by remember { mutableStateOf<CmsBanner?>(null) }
+
+    val heroPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                }
+            }.getOrNull()?.let { bmp ->
+                matchesHeroUrl = QrCodeUtils.compressBitmapToBase64(bmp, maxWidth = 720, quality = 65)
+            }
+        }
+    }
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionHeader("CMS, Engagement & Maintenance") }
+        item {
+            CyberGlassCard(glowColor = ElectricViolet) {
+                SectionHeader("Matches Top Hero Image", "Shown right above all tournaments")
+                Spacer(Modifier.height(8.dp))
+                val previewBitmap = remember(matchesHeroUrl) {
+                    val trimmed = matchesHeroUrl.trim()
+                    if (trimmed.isNotEmpty() && !trimmed.startsWith("http", ignoreCase = true)) {
+                        QrCodeUtils.decodeBase64Image(trimmed)
+                    } else null
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, NeonCyan.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                ) {
+                    val trimmed = matchesHeroUrl.trim()
+                    when {
+                        trimmed.startsWith("http", ignoreCase = true) -> {
+                            AsyncImage(model = trimmed, contentDescription = "Matches Banner Preview", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                        previewBitmap != null -> {
+                            Image(bitmap = previewBitmap.asImageBitmap(), contentDescription = "Matches Banner Preview", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                        else -> {
+                            Image(painter = painterResource(id = bannerDrawableForKey(matchesHeroKey)), contentDescription = "Matches Banner Preview", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(
+                        onClick = { heroPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        modifier = Modifier.weight(1f).testTag("admin_pick_matches_hero_btn")
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, tint = NeonCyan)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Pick from Gallery", color = NeonCyan)
+                    }
+                    if (matchesHeroUrl.isNotBlank()) {
+                        OutlinedButton(onClick = { matchesHeroUrl = "" }) {
+                            Text("Reset Preset", color = AmberWarning)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = if (matchesHeroUrl.startsWith("http", ignoreCase = true) || matchesHeroUrl.isBlank()) matchesHeroUrl else "[Custom Gallery Image Uploaded]",
+                    onValueChange = { matchesHeroUrl = it },
+                    label = { Text("Or Paste Image URL (https://...)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(listOf("bgmi", "freefire", "codm", "hero")) { k ->
+                        FilterChip(
+                            selected = matchesHeroUrl.isBlank() && matchesHeroKey == k,
+                            onClick = {
+                                matchesHeroUrl = ""
+                                matchesHeroKey = k
+                            },
+                            label = { Text(k.uppercase()) }
+                        )
+                    }
+                }
+                OutlinedTextField(value = matchesHeroTitle, onValueChange = { matchesHeroTitle = it }, label = { Text("Matches Banner Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(value = matchesHeroSub, onValueChange = { matchesHeroSub = it }, label = { Text("Matches Banner Subtitle") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        }
         item {
             CyberGlassCard(glowColor = if (maintMode) CrimsonDanger else NeonCyan) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -349,11 +458,15 @@ fun AdminCmsEngagementModule(
                                 bonusUsablePercent = bonusPct.toLongOrNull() ?: 10L,
                                 telegramUrl = tgUrl,
                                 discordUrl = dcUrl,
-                                rulesText = rulesText
+                                rulesText = rulesText,
+                                matchesHeroBannerUrl = matchesHeroUrl.trim(),
+                                matchesHeroBannerKey = matchesHeroKey,
+                                matchesHeroTitle = matchesHeroTitle.trim(),
+                                matchesHeroSubtitle = matchesHeroSub.trim()
                             )
                         )
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("save_cms_controls_btn")
                 )
             }
         }

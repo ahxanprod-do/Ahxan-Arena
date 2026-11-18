@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -40,8 +41,10 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,6 +52,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,6 +89,7 @@ import com.example.ui.screens.HomeLobbyScreen
 import com.example.ui.screens.MyMatchesScreen
 import com.example.ui.screens.ProfileAndMoreScreen
 import com.example.ui.screens.ReferEarnScreen
+import com.example.ui.screens.SplashScreen
 import com.example.ui.screens.SupportDeskScreen
 import com.example.ui.screens.TournamentDetailSheet
 import com.example.ui.screens.TournamentsScreen
@@ -105,6 +110,7 @@ import com.example.viewmodel.ArenaViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.delay
 
 private data class BottomNavTab(
     val route: String,
@@ -125,27 +131,37 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AhxanArenaTheme {
+                var showSplash by rememberSaveable { mutableStateOf(true) }
+                LaunchedEffect(Unit) {
+                    delay(1600L)
+                    showSplash = false
+                }
+
                 val authUser by remember { Firebase.auth.authStateFlow() }
                     .collectAsStateWithLifecycle(initialValue = Firebase.auth.currentUser)
 
-                val currentUser = authUser
-                if (currentUser == null) {
-                    AuthScreen(
-                        initialReferralCode = deepLinkRefCodeState.value,
-                        onAuthSuccess = { }
-                    )
+                if (showSplash) {
+                    SplashScreen()
                 } else {
-                    val uid = currentUser.uid
-                    key(uid) {
-                        AuthenticatedArenaApp(
-                            uid = uid,
-                            email = currentUser.email.orEmpty(),
-                            emailVerified = currentUser.isEmailVerified,
-                            pendingRoute = deepLinkRouteState.value,
-                            pendingOrderCheck = deepLinkCheckOrderState.value,
-                            onConsumedRoute = { deepLinkRouteState.value = null },
-                            onConsumedOrderCheck = { deepLinkCheckOrderState.value = null }
+                    val currentUser = authUser
+                    if (currentUser == null) {
+                        AuthScreen(
+                            initialReferralCode = deepLinkRefCodeState.value,
+                            onAuthSuccess = { }
                         )
+                    } else {
+                        val uid = currentUser.uid
+                        key(uid) {
+                            AuthenticatedArenaApp(
+                                uid = uid,
+                                email = currentUser.email.orEmpty(),
+                                emailVerified = currentUser.isEmailVerified,
+                                pendingRoute = deepLinkRouteState.value,
+                                pendingOrderCheck = deepLinkCheckOrderState.value,
+                                onConsumedRoute = { deepLinkRouteState.value = null },
+                                onConsumedOrderCheck = { deepLinkCheckOrderState.value = null }
+                            )
+                        }
                     }
                 }
             }
@@ -255,6 +271,7 @@ private fun AuthenticatedArenaApp(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: "home"
     var selectedTournament by remember { mutableStateOf<Tournament?>(null) }
+    var showNotAdminDialog by remember { mutableStateOf(false) }
 
     val navigateTo: (String) -> Unit = remember(navController) {
         { route ->
@@ -268,6 +285,22 @@ private fun AuthenticatedArenaApp(
             } else if (target in listOf("refer", "support", "admin")) {
                 navController.navigate(target) { launchSingleTop = true }
             }
+        }
+    }
+
+    LaunchedEffect(user?.userId, isAdminAccess) {
+        val prefs = context.getSharedPreferences("ahxan_app", Context.MODE_PRIVATE)
+        val loginMode = prefs.getString("pending_login_mode", "").orEmpty()
+        if (loginMode == "admin") {
+            if (isAdminAccess) {
+                prefs.edit().remove("pending_login_mode").apply()
+                navigateTo("admin")
+            } else if (user != null) {
+                prefs.edit().remove("pending_login_mode").apply()
+                showNotAdminDialog = true
+            }
+        } else if (loginMode == "player" && user != null) {
+            prefs.edit().remove("pending_login_mode").apply()
         }
     }
 
@@ -404,6 +437,7 @@ private fun AuthenticatedArenaApp(
                                 TournamentsScreen(
                                     tournaments = tournaments,
                                     joinedMatches = joinedMatches,
+                                    generalConfig = generalConfig,
                                     onSelectTournament = { selectedTournament = it }
                                 )
                             }
@@ -442,7 +476,7 @@ private fun AuthenticatedArenaApp(
                                     generalConfig = generalConfig,
                                     isAdminAccess = isAdminAccess,
                                     busy = busy,
-                                    onSaveProfile = { name, ign, gameUid, push -> arenaVm.updateProfile(name, ign, gameUid, push) },
+                                    onSaveProfile = { name, ign, gameUid, phone, push -> arenaVm.updateProfile(name, ign, gameUid, phone, push) },
                                     onSendTestPush = { arenaVm.sendTestNotification() },
                                     onNavigate = navigateTo,
                                     onOpenAdminCenter = { navigateTo("admin") }
@@ -507,6 +541,35 @@ private fun AuthenticatedArenaApp(
                 arenaVm.joinMatch(m, ign, gUid, squad, coupon, onDone)
             },
             onDismiss = { selectedTournament = null }
+        )
+    }
+
+    if (showNotAdminDialog) {
+        val scope = rememberCoroutineScope()
+        val credentialManager = remember { CredentialManager.create(context) }
+        AlertDialog(
+            onDismissRequest = { showNotAdminDialog = false },
+            containerColor = ObsidianSurface,
+            title = { Text("Admin Access Required", color = AmberWarning) },
+            text = {
+                Text(
+                    "The Google account ($email) is not authorized as an Admin or Staff member. Continue as a Player or Sign Out.",
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showNotAdminDialog = false }) {
+                    Text("Continue as Player", color = NeonCyan)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = {
+                    showNotAdminDialog = false
+                    AuthHelper.signOut(credentialManager, scope)
+                }) {
+                    Text("Sign Out", color = CrimsonDanger)
+                }
+            }
         )
     }
 }
