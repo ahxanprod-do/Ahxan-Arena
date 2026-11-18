@@ -286,10 +286,8 @@ fun AdminGatewayDepositsModule(
     busy: Boolean,
     adminVm: AdminViewModel
 ) {
-    val context = LocalContext.current
     var statusFilter by remember { mutableStateOf("All") }
     var apiOverride by remember(gatewayConfig) { mutableStateOf(gatewayConfig.payzapiApiKeyOverride) }
-    var resendOverride by remember(gatewayConfig) { mutableStateOf(gatewayConfig.resendApiKey) }
     var fampay by remember(gatewayConfig) { mutableStateOf(gatewayConfig.fampayEnabled) }
     var paytm by remember(gatewayConfig) { mutableStateOf(gatewayConfig.paytmEnabled) }
     var bharatpe by remember(gatewayConfig) { mutableStateOf(gatewayConfig.bharatpeEnabled) }
@@ -306,11 +304,9 @@ fun AdminGatewayDepositsModule(
         item { SectionHeader("PayZapi Gateway & Deposits", "${deposits.size} orders") }
         item {
             CyberGlassCard(glowColor = NeonCyan) {
-                Text("Gateway & Email OTP Settings", style = MaterialTheme.typography.titleMedium, color = NeonCyan)
+                Text("Gateway Settings", style = MaterialTheme.typography.titleMedium, color = NeonCyan)
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(value = apiOverride, onValueChange = { apiOverride = it }, label = { Text("PayZapi API Key Override (Optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(value = resendOverride, onValueChange = { resendOverride = it }, label = { Text("Resend Email OTP API Key (Optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Row(verticalAlignment = Alignment.CenterVertically) { Switch(checked = fampay, onCheckedChange = { fampay = it }); Text("FamPay", color = TextPrimary) }
@@ -332,12 +328,9 @@ fun AdminGatewayDepositsModule(
                     text = if (busy) "Saving..." else "Save Gateway Config",
                     enabled = !busy,
                     onClick = {
-                        context.getSharedPreferences("ahxan_secrets", android.content.Context.MODE_PRIVATE)
-                            .edit().putString("resend_api_key", resendOverride.trim()).apply()
                         adminVm.saveGatewayConfig(
                             gatewayConfig.copy(
                                 payzapiApiKeyOverride = apiOverride.trim(),
-                                resendApiKey = resendOverride.trim(),
                                 fampayEnabled = fampay,
                                 paytmEnabled = paytm,
                                 bharatpeEnabled = bharatpe,

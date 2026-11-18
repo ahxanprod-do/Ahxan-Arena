@@ -37,11 +37,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -50,7 +52,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.R
+import com.example.utils.QrCodeUtils
 import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.BorderGlow
 import com.example.ui.theme.BorderSubtle
@@ -69,6 +73,47 @@ fun bannerDrawableForKey(key: String): Int = when (key.lowercase()) {
     "codm" -> R.drawable.img_banner_codm
     "hero" -> R.drawable.img_arena_hero
     else -> R.drawable.img_banner_bgmi
+}
+
+@Composable
+fun MatchBannerImage(
+    bannerUrl: String,
+    bannerKey: String,
+    contentDescription: String,
+    modifier: Modifier = Modifier
+) {
+    val trimmed = bannerUrl.trim()
+    val decodedBitmap = remember(trimmed) {
+        if (trimmed.isNotEmpty() && !trimmed.startsWith("http", ignoreCase = true)) {
+            QrCodeUtils.decodeBase64Image(trimmed)
+        } else null
+    }
+    when {
+        trimmed.startsWith("http", ignoreCase = true) -> {
+            AsyncImage(
+                model = trimmed,
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+            )
+        }
+        decodedBitmap != null -> {
+            Image(
+                bitmap = decodedBitmap.asImageBitmap(),
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+            )
+        }
+        else -> {
+            Image(
+                painter = painterResource(id = bannerDrawableForKey(bannerKey)),
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+            )
+        }
+    }
 }
 
 @Composable

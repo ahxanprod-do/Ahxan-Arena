@@ -49,6 +49,9 @@ test("Unauthenticated users cannot read or write any collection", async () => {
   await assertFails(unauthDb.collection("users").doc(ALICE_UID).get());
   await assertFails(unauthDb.collection("deposits").where("userId", "==", ALICE_UID).get());
   await assertFails(unauthDb.collection("coupons").get());
+  await assertFails(unauthDb.collection("app_config").doc("gateway").get());
+  await assertFails(unauthDb.collection("app_config").get());
+  await assertSucceeds(unauthDb.collection("app_config").doc("otp").get());
 });
 
 test("User profile: owner creation, safe update, cross-user PII isolation, and role escalation block", async () => {

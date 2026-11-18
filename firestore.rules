@@ -121,6 +121,7 @@ service cloud.firestore {
              data.status in ['upcoming', 'live', 'completed', 'cancelled'] &&
              data.scheduledAtMillis is int &&
              (!('bannerKey' in data) || (data.bannerKey is string && data.bannerKey.size() <= 40)) &&
+             (!('bannerUrl' in data) || (data.bannerUrl is string && data.bannerUrl.size() <= 450000)) &&
              (!('rulesText' in data) || (data.rulesText is string && data.rulesText.size() <= 4000)) &&
              (!('prizeBreakdown' in data) || (data.prizeBreakdown is string && data.prizeBreakdown.size() <= 1000)) &&
              data.roomPublished is bool &&

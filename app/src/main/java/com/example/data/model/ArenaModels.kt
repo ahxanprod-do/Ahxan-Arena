@@ -78,6 +78,7 @@ data class Tournament(
     val status: String = "upcoming",
     val scheduledAtMillis: Long = 0L,
     val bannerKey: String = "bgmi",
+    val bannerUrl: String = "",
     val rulesText: String = "",
     val prizeBreakdown: String = "",
     val roomPublished: Boolean = false,
@@ -336,7 +337,6 @@ data class GeneralConfig(
 data class GatewayConfig(
     @DocumentId val id: String = "",
     val payzapiApiKeyOverride: String = "",
-    val resendApiKey: String = "",
     val fampayEnabled: Boolean = true,
     val paytmEnabled: Boolean = true,
     val bharatpeEnabled: Boolean = true,

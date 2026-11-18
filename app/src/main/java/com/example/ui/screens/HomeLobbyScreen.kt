@@ -73,6 +73,7 @@ import com.example.data.model.UserNotification
 import com.example.data.model.UserProfile
 import com.example.notifications.ArenaNotificationHelper
 import com.example.ui.components.CyberGlassCard
+import com.example.ui.components.MatchBannerImage
 import com.example.ui.components.NeonPrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.SlotsProgressBar
@@ -495,16 +496,38 @@ fun TournamentLobbyCard(
         onClick = onClick,
         modifier = Modifier.testTag("tournament_card_${match.id}")
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(110.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, statusColor.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                StatusPill(label = match.game, color = NeonCyan)
-                StatusPill(label = match.mode, color = ElectricViolet)
+            MatchBannerImage(
+                bannerUrl = match.bannerUrl,
+                bannerKey = match.bannerKey,
+                contentDescription = match.title,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(ObsidianBg.copy(alpha = 0.25f), ObsidianBg.copy(alpha = 0.85f))))
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopStart)
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    StatusPill(label = match.game, color = NeonCyan)
+                    StatusPill(label = match.mode, color = ElectricViolet)
+                }
+                StatusPill(label = match.status, color = statusColor)
             }
-            StatusPill(label = match.status, color = statusColor)
         }
         Spacer(Modifier.height(10.dp))
         Text(

@@ -68,6 +68,7 @@ import com.example.data.model.RoomSecret
 import com.example.data.model.Tournament
 import com.example.data.model.UserProfile
 import com.example.ui.components.CyberGlassCard
+import com.example.ui.components.MatchBannerImage
 import com.example.ui.components.NeonPrimaryButton
 import com.example.ui.components.SlotsProgressBar
 import com.example.ui.components.StatusPill
@@ -338,13 +339,13 @@ fun TournamentDetailSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
+                    .height(150.dp)
                     .clip(RoundedCornerShape(16.dp))
             ) {
-                Image(
-                    painter = painterResource(id = bannerDrawableForKey(match.bannerKey)),
+                MatchBannerImage(
+                    bannerUrl = match.bannerUrl,
+                    bannerKey = match.bannerKey,
                     contentDescription = match.title,
-                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
                 Box(

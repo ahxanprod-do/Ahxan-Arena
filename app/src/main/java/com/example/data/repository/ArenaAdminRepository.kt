@@ -285,7 +285,6 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                 db.collection("app_config").document("gateway"),
                 mapOf(
                     "payzapiApiKeyOverride" to "",
-                    "resendApiKey" to "",
                     "fampayEnabled" to true,
                     "paytmEnabled" to true,
                     "bharatpeEnabled" to true,
@@ -394,6 +393,7 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                         "status" to tournament.status,
                         "scheduledAtMillis" to tournament.scheduledAtMillis,
                         "bannerKey" to tournament.bannerKey,
+                        "bannerUrl" to tournament.bannerUrl.trim().take(440000),
                         "rulesText" to tournament.rulesText,
                         "prizeBreakdown" to tournament.prizeBreakdown,
                         "roomPublished" to false,
@@ -417,6 +417,10 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                         "maxSlots" to tournament.maxSlots,
                         "status" to tournament.status,
                         "scheduledAtMillis" to tournament.scheduledAtMillis,
+                        "bannerKey" to tournament.bannerKey,
+                        "bannerUrl" to tournament.bannerUrl.trim().take(440000),
+                        "rulesText" to tournament.rulesText,
+                        "prizeBreakdown" to tournament.prizeBreakdown,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).await()
@@ -840,7 +844,6 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
             db.collection("app_config").document("gateway").set(
                 mapOf(
                     "payzapiApiKeyOverride" to config.payzapiApiKeyOverride.trim(),
-                    "resendApiKey" to config.resendApiKey.trim(),
                     "fampayEnabled" to config.fampayEnabled,
                     "paytmEnabled" to config.paytmEnabled,
                     "bharatpeEnabled" to config.bharatpeEnabled,

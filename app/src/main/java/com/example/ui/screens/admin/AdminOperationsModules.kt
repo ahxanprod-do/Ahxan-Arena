@@ -1,6 +1,10 @@
 package com.example.ui.screens.admin
 
+import android.graphics.BitmapFactory
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,6 +34,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.People
@@ -71,6 +76,7 @@ import com.example.data.model.TicketMessage
 import com.example.data.model.Tournament
 import com.example.data.model.UserProfile
 import com.example.ui.components.CyberGlassCard
+import com.example.ui.components.MatchBannerImage
 import com.example.ui.components.NeonPrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.StatusPill
@@ -248,6 +254,16 @@ fun AdminTournamentEngineModule(
 
         items(tournaments, key = { it.id }) { m ->
             CyberGlassCard(glowColor = if (m.status == "live") EmeraldProfit else NeonCyan) {
+                MatchBannerImage(
+                    bannerUrl = m.bannerUrl,
+                    bannerKey = m.bannerKey,
+                    contentDescription = m.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(92.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                )
+                Spacer(Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(m.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
@@ -302,6 +318,7 @@ fun AdminTournamentEngineModule(
     }
 
     editingMatch?.let { init ->
+        val context = LocalContext.current
         var title by remember(init.id) { mutableStateOf(init.title) }
         var game by remember(init.id) { mutableStateOf(init.game) }
         var mode by remember(init.id) { mutableStateOf(init.mode) }
@@ -310,18 +327,109 @@ fun AdminTournamentEngineModule(
         var poolText by remember(init.id) { mutableStateOf(init.prizePool.toString()) }
         var killText by remember(init.id) { mutableStateOf(init.perKillReward.toString()) }
         var maxSlotsText by remember(init.id) { mutableStateOf(init.maxSlots.toString()) }
+        var bannerKey by remember(init.id) { mutableStateOf(init.bannerKey.ifBlank { "bgmi" }) }
+        var bannerUrl by remember(init.id) { mutableStateOf(init.bannerUrl) }
         var rules by remember(init.id) { mutableStateOf(init.rulesText) }
         var breakdown by remember(init.id) { mutableStateOf(init.prizeBreakdown) }
+
+        val matchBannerPicker = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+                }.getOrNull()?.let { bmp ->
+                    bannerUrl = QrCodeUtils.compressBitmapToBase64(bmp, maxWidth = 720, quality = 65)
+                }
+            }
+        }
 
         ModalBottomSheet(onDismissRequest = { editingMatch = null }, containerColor = ObsidianSurface) {
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
                 Text(if (init.id.isBlank()) "Create Match" else "Edit Match", style = MaterialTheme.typography.headlineSmall, color = NeonCyan)
+                Spacer(Modifier.height(10.dp))
+
+                // Match Banner Preview & Selector
+                Text("Match Banner (Optional)", style = MaterialTheme.typography.labelLarge, color = TextSecondary)
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, NeonCyan.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                ) {
+                    MatchBannerImage(
+                        bannerUrl = bannerUrl,
+                        bannerKey = bannerKey,
+                        contentDescription = "Match Banner Preview",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(
+                        onClick = {
+                            matchBannerPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        modifier = Modifier.weight(1f).testTag("admin_pick_match_banner_btn")
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, tint = NeonCyan)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Pick Banner from Gallery", color = NeonCyan)
+                    }
+                    if (bannerUrl.isNotBlank()) {
+                        OutlinedButton(
+                            onClick = { bannerUrl = "" },
+                            modifier = Modifier.testTag("admin_reset_match_banner_btn")
+                        ) {
+                            Text("Reset", color = AmberWarning)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = if (bannerUrl.startsWith("http", ignoreCase = true) || bannerUrl.isBlank()) bannerUrl else "[Custom Gallery Image Uploaded]",
+                    onValueChange = { bannerUrl = it },
+                    label = { Text("Or Banner Image URL (https://...)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("admin_match_banner_url_input")
+                )
+                Spacer(Modifier.height(4.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(listOf("bgmi", "freefire", "codm", "hero")) { k ->
+                        FilterChip(
+                            selected = bannerUrl.isBlank() && bannerKey == k,
+                            onClick = {
+                                bannerUrl = ""
+                                bannerKey = k
+                            },
+                            label = { Text(k.uppercase()) }
+                        )
+                    }
+                }
+
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Match Title") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(listOf("BGMI", "Free Fire MAX", "COD Mobile", "Valorant")) { g ->
-                        FilterChip(selected = game == g, onClick = { game = g }, label = { Text(g) })
+                        FilterChip(
+                            selected = game == g,
+                            onClick = {
+                                game = g
+                                if (bannerUrl.isBlank() && init.id.isBlank()) {
+                                    bannerKey = when {
+                                        g.contains("Free", true) -> "freefire"
+                                        g.contains("COD", true) -> "codm"
+                                        else -> "bgmi"
+                                    }
+                                }
+                            },
+                            label = { Text(g) }
+                        )
                     }
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -349,11 +457,6 @@ fun AdminTournamentEngineModule(
                     text = if (busy) "Saving..." else "Save Match",
                     enabled = !busy && title.isNotBlank(),
                     onClick = {
-                        val bKey = when {
-                            game.contains("Free", true) -> "freefire"
-                            game.contains("COD", true) -> "codm"
-                            else -> "bgmi"
-                        }
                         adminVm.saveTournament(
                             init.copy(
                                 title = title,
@@ -364,7 +467,8 @@ fun AdminTournamentEngineModule(
                                 prizePool = poolText.toDoubleOrNull() ?: 0.0,
                                 perKillReward = killText.toDoubleOrNull() ?: 0.0,
                                 maxSlots = maxSlotsText.toLongOrNull() ?: 100L,
-                                bannerKey = bKey,
+                                bannerKey = bannerKey,
+                                bannerUrl = bannerUrl.trim(),
                                 rulesText = rules,
                                 prizeBreakdown = breakdown
                             )

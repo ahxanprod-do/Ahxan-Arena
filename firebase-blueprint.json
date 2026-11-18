@@ -80,6 +80,7 @@
         "status": { "type": "string", "enum": ["upcoming", "live", "completed", "cancelled"] },
         "scheduledAtMillis": { "type": "integer" },
         "bannerKey": { "type": "string" },
+        "bannerUrl": { "type": "string" },
         "rulesText": { "type": "string" },
         "prizeBreakdown": { "type": "string" },
         "roomPublished": { "type": "boolean" },
