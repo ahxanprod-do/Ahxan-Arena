@@ -398,6 +398,8 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                         "filledSlots" to 0L,
                         "status" to tournament.status,
                         "scheduledAtMillis" to tournament.scheduledAtMillis,
+                        "registrationOpenAtMillis" to tournament.registrationOpenAtMillis,
+                        "registrationCloseAtMillis" to tournament.registrationCloseAtMillis,
                         "bannerKey" to tournament.bannerKey,
                         "bannerUrl" to tournament.bannerUrl.trim().take(440000),
                         "rulesText" to tournament.rulesText,
@@ -423,6 +425,8 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                         "maxSlots" to tournament.maxSlots,
                         "status" to tournament.status,
                         "scheduledAtMillis" to tournament.scheduledAtMillis,
+                        "registrationOpenAtMillis" to tournament.registrationOpenAtMillis,
+                        "registrationCloseAtMillis" to tournament.registrationCloseAtMillis,
                         "bannerKey" to tournament.bannerKey,
                         "bannerUrl" to tournament.bannerUrl.trim().take(440000),
                         "rulesText" to tournament.rulesText,
@@ -455,13 +459,17 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
     }
 
     suspend fun cloneTournament(source: Tournament): Result<Unit> {
+        val now = System.currentTimeMillis()
+        val newScheduled = now + 3600_000L * 2
         val cloned = source.copy(
             id = "",
             title = "${source.title} (Clone)".take(115),
             filledSlots = 0L,
             status = "upcoming",
             roomPublished = false,
-            scheduledAtMillis = System.currentTimeMillis() + 3600_000L * 2
+            scheduledAtMillis = newScheduled,
+            registrationOpenAtMillis = if (source.registrationOpenAtMillis > 0L) now else 0L,
+            registrationCloseAtMillis = if (source.registrationCloseAtMillis > 0L) (newScheduled - 15 * 60_000L) else 0L
         )
         return saveTournament(cloned)
     }

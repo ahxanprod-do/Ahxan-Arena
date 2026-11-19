@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -400,6 +402,7 @@ fun TournamentDetailSheet(
     var couponError by remember { mutableStateOf<String?>(null) }
     var joinValidationError by remember { mutableStateOf<String?>(null) }
 
+    var nowMillis by remember(match.id) { mutableStateOf(System.currentTimeMillis()) }
     var remainingMillis by remember(match.scheduledAtMillis) {
         mutableStateOf((match.scheduledAtMillis - System.currentTimeMillis()).coerceAtLeast(0L))
     }
@@ -410,12 +413,18 @@ fun TournamentDetailSheet(
         }
     }
 
-    LaunchedEffect(match.scheduledAtMillis) {
+    LaunchedEffect(match.scheduledAtMillis, match.registrationOpenAtMillis, match.registrationCloseAtMillis) {
         while (true) {
-            remainingMillis = (match.scheduledAtMillis - System.currentTimeMillis()).coerceAtLeast(0L)
+            nowMillis = System.currentTimeMillis()
+            remainingMillis = (match.scheduledAtMillis - nowMillis).coerceAtLeast(0L)
             delay(1000L)
         }
     }
+
+    val regNotStarted = match.isRegistrationNotStarted(nowMillis)
+    val regClosed = match.isRegistrationClosed(nowMillis)
+    val isFull = match.filledSlots >= match.maxSlots
+    val joinEnabled = joinedSlot == null && match.status == "upcoming" && !isFull && !regNotStarted && !regClosed
 
     val canRevealRoom = joinedSlot != null && (match.roomPublished || remainingMillis <= 15 * 60 * 1000L)
     val discount = appliedCoupon?.computeBenefit(match.entryFee) ?: 0.0
@@ -425,7 +434,7 @@ fun TournamentDetailSheet(
         onDismissRequest = {
             if (currentStep == "slot_picker") currentStep = "detail" else onDismiss()
         },
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         BackHandler {
             when (currentStep) {
@@ -451,6 +460,8 @@ fun TournamentDetailSheet(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.White)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
             ) {
                 SubScreenTopBar(
                     title = "Choose your match slot",
@@ -702,11 +713,13 @@ fun TournamentDetailSheet(
                 }
             }
         } else {
-            // Match Detail View (matching Screenshots 155603, 155611, 155614)
+            // Match Detail View (with safe system bar insets + inline Join button + sticky bottom bar)
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.White)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
             ) {
                 Column(
                     modifier = Modifier
@@ -756,6 +769,88 @@ fun TournamentDetailSheet(
                             DetailInfoChip("Match Type: ${match.entryType}")
                             DetailCoinChip("Entry Fee:", if (match.entryFee <= 0.0) "FREE" else "${match.entryFee.toLong()}")
                             DetailInfoChip("Match Schedule: ${ArenaFormatters.formatTimestampMillis(match.scheduledAtMillis)}")
+                            DetailInfoChip("Slots: ${match.filledSlots}/${match.maxSlots}")
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+                        // Registration Window Status + Prominent In-Page Join Button
+                        Surface(
+                            color = Color(0xFFF8FAFC),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(
+                                1.2.dp,
+                                when {
+                                    joinedSlot != null -> ArenaGreen
+                                    joinEnabled -> ArenaBlue
+                                    regNotStarted -> ArenaOrange
+                                    else -> CrimsonDanger
+                                }
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = when {
+                                            joinedSlot != null -> "YOU ARE JOINED (SLOT #${joinedSlot.slotNumber})"
+                                            regNotStarted -> "OPENS IN ${ArenaFormatters.formatCountdown(match.registrationOpenAtMillis, nowMillis)}"
+                                            regClosed -> "REGISTRATION CLOSED"
+                                            isFull -> "MATCH FULL"
+                                            match.status != "upcoming" -> match.status.uppercase()
+                                            match.registrationCloseAtMillis > 0L -> "OPEN • CLOSES IN ${ArenaFormatters.formatCountdown(match.registrationCloseAtMillis, nowMillis)}"
+                                            else -> "REGISTRATION OPEN"
+                                        },
+                                        color = when {
+                                            joinedSlot != null -> ArenaGreen
+                                            joinEnabled -> ArenaBlue
+                                            regNotStarted -> ArenaOrange
+                                            else -> CrimsonDanger
+                                        },
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                if (match.registrationOpenAtMillis > 0L || match.registrationCloseAtMillis > 0L) {
+                                    Text(
+                                        text = "Reg Opens: ${if (match.registrationOpenAtMillis > 0L) ArenaFormatters.formatTimestampMillis(match.registrationOpenAtMillis) else "Immediate"} • Closes: ${if (match.registrationCloseAtMillis > 0L) ArenaFormatters.formatTimestampMillis(match.registrationCloseAtMillis) else "Until Full"}",
+                                        color = CardMutedText,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Button(
+                                    onClick = {
+                                        onLoadParticipants(match.id)
+                                        currentStep = "slot_picker"
+                                    },
+                                    enabled = joinEnabled,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (joinedSlot != null) ArenaGreen else ArenaBlue,
+                                        contentColor = Color.White,
+                                        disabledContainerColor = Color(0xFFCBD5E1),
+                                        disabledContentColor = Color(0xFF475569)
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth().height(48.dp).testTag("detail_inline_join_btn")
+                                ) {
+                                    Text(
+                                        text = when {
+                                            joinedSlot != null -> "SLOT #${joinedSlot.slotNumber} CONFIRMED"
+                                            regNotStarted -> "REGISTRATION OPENS AT ${ArenaFormatters.formatTimestampMillis(match.registrationOpenAtMillis)}"
+                                            regClosed -> "REGISTRATION CLOSED"
+                                            isFull -> "MATCH FULL"
+                                            match.status != "upcoming" -> match.status.uppercase()
+                                            match.entryFee <= 0.0 -> "JOIN MATCH NOW (FREE)"
+                                            else -> "JOIN MATCH NOW (${match.entryFee.toLong()} COINS)"
+                                        },
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(Modifier.height(18.dp))
@@ -917,7 +1012,6 @@ fun TournamentDetailSheet(
                     ) {
                         Text("MY ENTRIES", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
-                    val joinEnabled = joinedSlot == null && match.status == "upcoming" && match.filledSlots < match.maxSlots
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -933,7 +1027,9 @@ fun TournamentDetailSheet(
                         Text(
                             text = when {
                                 joinedSlot != null -> "SLOT #${joinedSlot.slotNumber} JOINED"
-                                match.filledSlots >= match.maxSlots -> "MATCH FULL"
+                                isFull -> "MATCH FULL"
+                                regNotStarted -> "OPENS SOON"
+                                regClosed -> "REG CLOSED"
                                 match.status != "upcoming" -> match.status.uppercase()
                                 else -> "JOIN NOW"
                             },

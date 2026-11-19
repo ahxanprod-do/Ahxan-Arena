@@ -120,6 +120,8 @@ service cloud.firestore {
              data.filledSlots is int && data.filledSlots >= 0 && data.filledSlots <= data.maxSlots &&
              data.status in ['upcoming', 'live', 'completed', 'cancelled'] &&
              data.scheduledAtMillis is int &&
+             (!('registrationOpenAtMillis' in data) || data.registrationOpenAtMillis is int) &&
+             (!('registrationCloseAtMillis' in data) || data.registrationCloseAtMillis is int) &&
              (!('bannerKey' in data) || (data.bannerKey is string && data.bannerKey.size() <= 40)) &&
              (!('bannerUrl' in data) || (data.bannerUrl is string && data.bannerUrl.size() <= 450000)) &&
              (!('rulesText' in data) || (data.rulesText is string && data.rulesText.size() <= 4000)) &&

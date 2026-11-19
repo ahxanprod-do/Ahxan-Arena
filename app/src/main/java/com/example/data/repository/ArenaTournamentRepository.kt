@@ -6,6 +6,7 @@ import com.example.data.model.OperationType
 import com.example.data.model.RoomSecret
 import com.example.data.model.Tournament
 import com.example.data.model.handleFirestoreError
+import com.example.utils.ArenaFormatters
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.DocumentSnapshot
@@ -156,7 +157,16 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
                 val currentFilled = matchSnap.getLong("filledSlots") ?: 0L
                 val maxSlots = matchSnap.getLong("maxSlots") ?: 0L
                 val status = matchSnap.getString("status").orEmpty()
+                val regOpenAt = matchSnap.getLong("registrationOpenAtMillis") ?: 0L
+                val regCloseAt = matchSnap.getLong("registrationCloseAtMillis") ?: 0L
+                val now = System.currentTimeMillis()
                 if (status != "upcoming") throw IllegalStateException("Match is no longer open for registration")
+                if (regOpenAt > 0L && now < regOpenAt) {
+                    throw IllegalStateException("Registration opens on ${ArenaFormatters.formatTimestampMillis(regOpenAt)}")
+                }
+                if (regCloseAt > 0L && now >= regCloseAt) {
+                    throw IllegalStateException("Registration window has closed")
+                }
                 if (currentFilled >= maxSlots) throw IllegalStateException("All slots are filled!")
 
                 val slotRef = matchRef.collection("slots").document(uid)

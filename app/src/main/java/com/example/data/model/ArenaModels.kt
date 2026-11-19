@@ -77,6 +77,8 @@ data class Tournament(
     val filledSlots: Long = 0L,
     val status: String = "upcoming",
     val scheduledAtMillis: Long = 0L,
+    val registrationOpenAtMillis: Long = 0L,
+    val registrationCloseAtMillis: Long = 0L,
     val bannerKey: String = "bgmi",
     val bannerUrl: String = "",
     val rulesText: String = "",
@@ -85,7 +87,19 @@ data class Tournament(
     val createdBy: String = "",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
-)
+) {
+    fun isRegistrationNotStarted(nowMillis: Long = System.currentTimeMillis()): Boolean =
+        registrationOpenAtMillis > 0L && nowMillis < registrationOpenAtMillis
+
+    fun isRegistrationClosed(nowMillis: Long = System.currentTimeMillis()): Boolean =
+        registrationCloseAtMillis > 0L && nowMillis >= registrationCloseAtMillis
+
+    fun isRegistrationOpen(nowMillis: Long = System.currentTimeMillis()): Boolean =
+        status == "upcoming" &&
+            filledSlots < maxSlots &&
+            !isRegistrationNotStarted(nowMillis) &&
+            !isRegistrationClosed(nowMillis)
+}
 
 @Keep
 @IgnoreExtraProperties

@@ -86,6 +86,7 @@ import com.example.ui.theme.ArenaOrange
 import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.CardDarkText
 import com.example.ui.theme.CardMutedText
+import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.CrimsonDanger
 import com.example.ui.theme.HeaderNavy
 import com.example.ui.theme.TextSecondary
@@ -540,7 +541,10 @@ fun TournamentLobbyCard(
     isJoined: Boolean = false,
     onClick: () -> Unit
 ) {
+    val nowMillis = System.currentTimeMillis()
     val isFull = match.filledSlots >= match.maxSlots
+    val regNotStarted = match.isRegistrationNotStarted(nowMillis)
+    val regClosed = match.isRegistrationClosed(nowMillis)
     val spotsLeft = (match.maxSlots - match.filledSlots).coerceAtLeast(0L)
     val progress = if (match.maxSlots > 0) (match.filledSlots.toFloat() / match.maxSlots.toFloat()).coerceIn(0f, 1f) else 0f
 
@@ -572,10 +576,12 @@ fun TournamentLobbyCard(
                         .padding(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    if (isJoined) {
-                        StatusPill("JOINED", ArenaGreen)
-                    } else if (match.status == "live") {
-                        StatusPill("LIVE", ArenaGreen)
+                    when {
+                        isJoined -> StatusPill("JOINED", ArenaGreen)
+                        match.status == "live" -> StatusPill("LIVE", ArenaGreen)
+                        regNotStarted -> StatusPill("OPENS ${ArenaFormatters.formatCountdown(match.registrationOpenAtMillis, nowMillis)}", CoinYellow)
+                        regClosed -> StatusPill("REG CLOSED", CrimsonDanger)
+                        match.registrationCloseAtMillis > 0L && match.status == "upcoming" -> StatusPill("REG OPEN", ArenaGreen)
                     }
                 }
             }
@@ -617,6 +623,21 @@ fun TournamentLobbyCard(
                             color = CardMutedText,
                             fontSize = 12.sp
                         )
+                        if (regNotStarted) {
+                            Text(
+                                text = "Reg opens: ${ArenaFormatters.formatTimestampMillis(match.registrationOpenAtMillis)}",
+                                color = ArenaOrange,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        } else if (match.registrationCloseAtMillis > 0L && match.status == "upcoming") {
+                            Text(
+                                text = if (regClosed) "Registration closed" else "Reg closes: ${ArenaFormatters.formatTimestampMillis(match.registrationCloseAtMillis)}",
+                                color = if (regClosed) CrimsonDanger else ArenaGreen,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
 
@@ -733,17 +754,22 @@ fun TournamentLobbyCard(
                                 Text("JOINED", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
-                        isFull || match.status != "upcoming" -> {
+                        isFull || match.status != "upcoming" || regNotStarted || regClosed -> {
                             Surface(
-                                color = Color(0xFF9CA3AF),
+                                color = if (regNotStarted) ArenaOrange else Color(0xFF9CA3AF),
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
-                                    text = if (isFull) "MATCH FULL" else match.status.uppercase(),
+                                    text = when {
+                                        isFull -> "MATCH FULL"
+                                        match.status != "upcoming" -> match.status.uppercase()
+                                        regNotStarted -> "OPENS SOON"
+                                        else -> "REG CLOSED"
+                                    },
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                                 )
                             }
                         }

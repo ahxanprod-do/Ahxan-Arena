@@ -105,6 +105,22 @@ object ArenaFormatters {
         return sdf.format(Date(millis))
     }
 
+    fun formatCountdown(targetMillis: Long, nowMillis: Long = System.currentTimeMillis()): String {
+        val diff = (targetMillis - nowMillis).coerceAtLeast(0L)
+        if (diff <= 0L) return "00s"
+        val totalSecs = diff / 1000L
+        val days = totalSecs / 86400L
+        val hours = (totalSecs % 86400L) / 3600L
+        val mins = (totalSecs % 3600L) / 60L
+        val secs = totalSecs % 60L
+        return when {
+            days > 0L -> "${days}d ${hours}h ${mins}m"
+            hours > 0L -> "${hours}h ${mins}m ${secs}s"
+            mins > 0L -> "${mins}m ${secs}s"
+            else -> "${secs}s"
+        }
+    }
+
     fun todayKey(): String {
         return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     }

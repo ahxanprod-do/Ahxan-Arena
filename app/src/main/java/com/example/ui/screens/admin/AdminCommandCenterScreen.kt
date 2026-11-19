@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Dashboard
@@ -155,6 +156,7 @@ fun AdminCommandCenterScreen(
         listOf(
             AdminNavModule("dashboard", "Dashboard", "", ArenaOrange, Icons.Default.Dashboard, true),
             AdminNavModule("users", "Users & Coins (${users.size})", "${users.size}", ArenaGreen, Icons.Default.Group, canManageUsers),
+            AdminNavModule("scheduler", "Scheduler", "", ArenaOrange, Icons.Default.CalendarMonth, isSuperAdmin || (staffRole?.manageMatches == true)),
             AdminNavModule("matches", "Matches (${tournaments.size})", "${tournaments.size}", ArenaPurple, Icons.Default.EmojiEvents, isSuperAdmin || (staffRole?.manageMatches == true) || (staffRole?.publishRooms == true)),
             AdminNavModule("categories", "Categories (${allCategories.size})", "", ArenaOrange, Icons.Default.Category, isSuperAdmin || (staffRole?.manageMatches == true) || (staffRole?.systemSettings == true)),
             AdminNavModule("gateway", "Deposits" + if (pendingDeposits > 0) " ($pendingDeposits)" else "", if (pendingDeposits > 0) "$pendingDeposits" else "", CoinYellow, Icons.Default.Payment, isSuperAdmin || (staffRole?.verifyDeposits == true)),
@@ -479,6 +481,7 @@ private fun AdminModuleContent(
             onQuickAddCoins = onQuickAddCoins
         )
         "push" -> AdminNotificationStudioModule(broadcasts, pushDevices, busy, adminVm)
+        "scheduler" -> AdminTournamentSchedulerModule(tournaments, categories, busy, adminVm)
         "categories" -> AdminCategoriesModule(categories, busy, adminVm)
         "matches" -> AdminTournamentEngineModule(tournaments, roster, categories, busy, adminVm)
         "coupons" -> AdminCouponsModule(coupons, busy, adminVm)
@@ -581,12 +584,12 @@ private fun ExecutiveDashboardModule(
                         onClick = { onNavigateModule("withdrawals") }
                     )
                     DashboardCommandTile(
-                        title = "Categories",
-                        subtitle = "CMS & App",
-                        icon = Icons.Default.Category,
+                        title = "Schedule",
+                        subtitle = "Auto Open/Close",
+                        icon = Icons.Default.CalendarMonth,
                         accent = ArenaOrange,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigateModule("categories") }
+                        modifier = Modifier.weight(1f).testTag("dash_scheduler_tile"),
+                        onClick = { onNavigateModule("scheduler") }
                     )
                 }
             }

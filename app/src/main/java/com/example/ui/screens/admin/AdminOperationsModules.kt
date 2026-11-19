@@ -389,6 +389,11 @@ fun AdminTournamentEngineModule(
         var bannerUrl by remember(init.id) { mutableStateOf(init.bannerUrl) }
         var rules by remember(init.id) { mutableStateOf(init.rulesText) }
         var breakdown by remember(init.id) { mutableStateOf(init.prizeBreakdown) }
+        var scheduledAt by remember(init.id) {
+            mutableStateOf(if (init.scheduledAtMillis > 0L) init.scheduledAtMillis else System.currentTimeMillis() + 3600_000L * 2)
+        }
+        var regOpenAt by remember(init.id) { mutableStateOf(init.registrationOpenAtMillis) }
+        var regCloseAt by remember(init.id) { mutableStateOf(init.registrationCloseAtMillis) }
 
         val matchBannerPicker = rememberLauncherForActivityResult(
             ActivityResultContracts.PickVisualMedia()
@@ -533,6 +538,34 @@ fun AdminTournamentEngineModule(
                 OutlinedTextField(value = breakdown, onValueChange = { breakdown = it }, label = { Text("Prize Breakdown") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(value = rules, onValueChange = { rules = it }, label = { Text("Rules") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(10.dp))
+                TimestampSelectorCard(
+                    label = "Reg Opens At",
+                    millis = regOpenAt,
+                    unrestrictedLabel = "Open Immediately",
+                    accent = AmberWarning,
+                    onPickDateTime = { pickDateTime(context, if (regOpenAt > 0L) regOpenAt else System.currentTimeMillis()) { regOpenAt = it } },
+                    quickChips = listOf(
+                        "Immediate" to { regOpenAt = 0L },
+                        "Now" to { regOpenAt = System.currentTimeMillis() },
+                        "+15m" to { regOpenAt = System.currentTimeMillis() + 15 * 60_000L },
+                        "+1h" to { regOpenAt = System.currentTimeMillis() + 3600_000L }
+                    )
+                )
+                Spacer(Modifier.height(6.dp))
+                TimestampSelectorCard(
+                    label = "Reg Closes At",
+                    millis = regCloseAt,
+                    unrestrictedLabel = "Until Full / Start",
+                    accent = ArenaOrange,
+                    onPickDateTime = { pickDateTime(context, if (regCloseAt > 0L) regCloseAt else (scheduledAt - 15 * 60_000L)) { regCloseAt = it } },
+                    quickChips = listOf(
+                        "No Cutoff" to { regCloseAt = 0L },
+                        "15m Before" to { regCloseAt = (scheduledAt - 15 * 60_000L).coerceAtLeast(System.currentTimeMillis() + 60_000L) },
+                        "30m Before" to { regCloseAt = (scheduledAt - 30 * 60_000L).coerceAtLeast(System.currentTimeMillis() + 60_000L) },
+                        "1h Before" to { regCloseAt = (scheduledAt - 3600_000L).coerceAtLeast(System.currentTimeMillis() + 60_000L) }
+                    )
+                )
                 Spacer(Modifier.height(12.dp))
                 NeonPrimaryButton(
                     text = if (busy) "Saving..." else "Save Match",
@@ -548,6 +581,9 @@ fun AdminTournamentEngineModule(
                                 prizePool = poolText.toDoubleOrNull() ?: 0.0,
                                 perKillReward = killText.toDoubleOrNull() ?: 0.0,
                                 maxSlots = maxSlotsText.toLongOrNull() ?: 100L,
+                                scheduledAtMillis = scheduledAt,
+                                registrationOpenAtMillis = regOpenAt,
+                                registrationCloseAtMillis = regCloseAt,
                                 bannerKey = bannerKey,
                                 bannerUrl = bannerUrl.trim(),
                                 rulesText = rules,
