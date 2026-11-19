@@ -43,18 +43,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.ui.components.ArenaBrandEmblem
 import com.example.ui.components.StatusPill
+import com.example.ui.theme.ArenaCharcoal
+import com.example.ui.theme.ArenaOrange
+import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.BorderSubtle
-import com.example.ui.theme.ElectricViolet
-import com.example.ui.theme.EmeraldProfit
-import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.ObsidianBg
+import com.example.ui.theme.CoinYellow
+import com.example.ui.theme.HeaderNavy
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
 @Composable
 fun SplashScreen() {
-    val scaleAnim = remember { Animatable(0.76f) }
+    val scaleAnim = remember { Animatable(0.78f) }
     val alphaAnim = remember { Animatable(0f) }
     val progressAnim = remember { Animatable(0.08f) }
 
@@ -83,8 +84,8 @@ fun SplashScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.radialGradient(
-                    colors = listOf(Color(0xFF121C38), Color(0xFF090D18), ObsidianBg)
+                Brush.verticalGradient(
+                    colors = listOf(HeaderNavy, ArenaCharcoal, HeaderNavy)
                 )
             )
             .statusBarsPadding()
@@ -92,7 +93,6 @@ fun SplashScreen() {
             .testTag("splash_screen"),
         contentAlignment = Alignment.Center
     ) {
-        // Ambient pulsing cyber halo behind emblem
         Box(
             modifier = Modifier
                 .size(210.dp)
@@ -101,15 +101,15 @@ fun SplashScreen() {
                 .background(
                     Brush.radialGradient(
                         listOf(
-                            NeonCyan.copy(alpha = glowAlpha * 0.42f),
-                            ElectricViolet.copy(alpha = glowAlpha * 0.25f),
+                            ArenaOrange.copy(alpha = glowAlpha * 0.42f),
+                            ArenaPurple.copy(alpha = glowAlpha * 0.25f),
                             Color.Transparent
                         )
                     )
                 )
                 .border(
-                    width = 1.dp,
-                    color = NeonCyan.copy(alpha = glowAlpha * 0.45f),
+                    width = 1.5.dp,
+                    color = CoinYellow.copy(alpha = glowAlpha * 0.55f),
                     shape = CircleShape
                 )
         )
@@ -129,7 +129,7 @@ fun SplashScreen() {
 
             Spacer(Modifier.height(24.dp))
 
-            StatusPill(label = "CYBER ESPORTS PLATFORM", color = EmeraldProfit)
+            StatusPill(label = "ESPORTS TOURNAMENT ARENA", color = CoinYellow)
 
             Spacer(Modifier.height(12.dp))
 
@@ -158,14 +158,14 @@ fun SplashScreen() {
                     .width(210.dp)
                     .height(6.dp)
                     .clip(RoundedCornerShape(50)),
-                color = NeonCyan,
+                color = ArenaOrange,
                 trackColor = BorderSubtle
             )
 
             Spacer(Modifier.height(10.dp))
 
             Text(
-                text = "INITIALIZING ARENA COMMAND...",
+                text = "LOADING TOURNAMENT LOBBY...",
                 style = MaterialTheme.typography.labelSmall,
                 color = TextMuted
             )

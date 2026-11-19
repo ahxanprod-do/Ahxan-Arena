@@ -100,13 +100,13 @@ import com.example.ui.screens.TournamentsScreen
 import com.example.ui.screens.WalletScreen
 import com.example.ui.screens.admin.AdminCommandCenterScreen
 import com.example.ui.theme.AhxanArenaTheme
-import com.example.ui.theme.AmberWarning
+import com.example.ui.theme.ArenaCharcoal
+import com.example.ui.theme.ArenaOrange
+import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.BottomNavBg
+import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.CrimsonDanger
-import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.ObsidianBg
-import com.example.ui.theme.ObsidianElevated
-import com.example.ui.theme.ObsidianSurface
+import com.example.ui.theme.HeaderNavy
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.viewmodel.AdminViewModel
@@ -277,8 +277,8 @@ private fun AuthenticatedArenaApp(
     val currentRoute = backStackEntry?.destination?.route ?: "home"
     var selectedTournament by remember { mutableStateOf<Tournament?>(null) }
     var showNotAdminDialog by remember { mutableStateOf(false) }
-    var selectedGameFilter by remember { mutableStateOf("All") }
-    var selectedStatusTab by remember { mutableIntStateOf(1) }
+    var selectedMatchCategory by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedStatusTab by rememberSaveable { mutableIntStateOf(1) }
 
     val navigateTo: (String) -> Unit = remember(navController) {
         { route ->
@@ -349,11 +349,11 @@ private fun AuthenticatedArenaApp(
     }
     val showMainNav = currentRoute in tabs.map { it.route }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(ObsidianBg)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(ArenaCharcoal)) {
         val isWide = maxWidth >= 600.dp
 
         Scaffold(
-            containerColor = ObsidianBg,
+            containerColor = ArenaCharcoal,
             contentWindowInsets = WindowInsets.safeDrawing,
             bottomBar = {
                 if (showMainNav && !isWide) {
@@ -362,7 +362,12 @@ private fun AuthenticatedArenaApp(
                             val selected = currentRoute == tab.route
                             NavigationBarItem(
                                 selected = selected,
-                                onClick = { navigateTo(tab.route) },
+                                onClick = {
+                                    if (tab.route == "tournaments") {
+                                        selectedMatchCategory = null
+                                    }
+                                    navigateTo(tab.route)
+                                },
                                 icon = { Icon(tab.icon, contentDescription = tab.label) },
                                 label = { Text(tab.label, maxLines = 1) },
                                 colors = NavigationBarItemDefaults.colors(
@@ -387,7 +392,12 @@ private fun AuthenticatedArenaApp(
                             val selected = currentRoute == tab.route
                             NavigationRailItem(
                                 selected = selected,
-                                onClick = { navigateTo(tab.route) },
+                                onClick = {
+                                    if (tab.route == "tournaments") {
+                                        selectedMatchCategory = null
+                                    }
+                                    navigateTo(tab.route)
+                                },
                                 icon = { Icon(tab.icon, contentDescription = tab.label) },
                                 label = { Text(tab.label) },
                                 colors = NavigationRailItemDefaults.colors(
@@ -415,8 +425,8 @@ private fun AuthenticatedArenaApp(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("MAINTENANCE MODE ACTIVE (ADMIN BYPASS)", style = MaterialTheme.typography.labelSmall, color = AmberWarning)
-                                Text("Open Admin", style = MaterialTheme.typography.labelLarge, color = NeonCyan)
+                                Text("MAINTENANCE MODE ACTIVE (ADMIN BYPASS)", style = MaterialTheme.typography.labelSmall, color = CoinYellow)
+                                Text("Open Admin", style = MaterialTheme.typography.labelLarge, color = ArenaOrange)
                             }
                         }
 
@@ -436,14 +446,19 @@ private fun AuthenticatedArenaApp(
                                     notifications = userNotifications,
                                     broadcasts = broadcasts,
                                     onClaimCheckIn = { arenaVm.claimDailyCheckIn() },
-                                    onNavigate = navigateTo,
+                                    onNavigate = { route ->
+                                        if (route.equals("tournaments", true)) {
+                                            selectedMatchCategory = null
+                                        }
+                                        navigateTo(route)
+                                    },
                                     onOpenGameTournaments = { gameKey ->
-                                        selectedGameFilter = gameKey
+                                        selectedMatchCategory = gameKey
                                         selectedStatusTab = 1
                                         navigateTo("tournaments")
                                     },
                                     onOpenContestTab = { statusIdx ->
-                                        selectedGameFilter = "All"
+                                        selectedMatchCategory = "All"
                                         selectedStatusTab = statusIdx
                                         navigateTo("tournaments")
                                     },
@@ -456,8 +471,10 @@ private fun AuthenticatedArenaApp(
                                     tournaments = tournaments,
                                     joinedMatches = joinedMatches,
                                     generalConfig = generalConfig,
-                                    initialGameFilter = selectedGameFilter,
+                                    selectedCategory = selectedMatchCategory,
                                     initialStatusTab = selectedStatusTab,
+                                    onSelectCategory = { catKey -> selectedMatchCategory = catKey },
+                                    onClearCategory = { selectedMatchCategory = null },
                                     onOpenMyMatches = { navigateTo("my_matches") },
                                     onSelectTournament = { selectedTournament = it }
                                 )
@@ -599,8 +616,8 @@ private fun AuthenticatedArenaApp(
         val credentialManager = remember { CredentialManager.create(context) }
         AlertDialog(
             onDismissRequest = { showNotAdminDialog = false },
-            containerColor = ObsidianSurface,
-            title = { Text("Admin Access Required", color = AmberWarning) },
+            containerColor = HeaderNavy,
+            title = { Text("Admin Access Required", color = CoinYellow) },
             text = {
                 Text(
                     "The Google account ($email) is not authorized as an Admin or Staff member. Continue as a Player or Sign Out.",
@@ -609,7 +626,7 @@ private fun AuthenticatedArenaApp(
             },
             confirmButton = {
                 TextButton(onClick = { showNotAdminDialog = false }) {
-                    Text("Continue as Player", color = NeonCyan)
+                    Text("Continue as Player", color = ArenaOrange)
                 }
             },
             dismissButton = {
@@ -630,7 +647,7 @@ private fun BannedOverlay(reason: String) {
     val scope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
 
-    Box(modifier = Modifier.fillMaxSize().background(ObsidianBg).padding(24.dp), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.fillMaxSize().background(ArenaCharcoal).padding(24.dp), contentAlignment = Alignment.Center) {
         CyberGlassCard(glowColor = CrimsonDanger, modifier = Modifier.widthIn(max = 460.dp)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Block, contentDescription = null, tint = CrimsonDanger, modifier = Modifier.size(48.dp))
@@ -643,7 +660,7 @@ private fun BannedOverlay(reason: String) {
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = { AuthHelper.signOut(credentialManager, scope) },
-                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonDanger, contentColor = TextPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonDanger, contentColor = Color.White)
                 ) { Text("Sign Out") }
             }
         }
@@ -656,24 +673,24 @@ private fun MaintenanceOverlay(message: String, eta: String) {
     val scope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
 
-    Box(modifier = Modifier.fillMaxSize().background(ObsidianBg).padding(24.dp), contentAlignment = Alignment.Center) {
-        CyberGlassCard(glowColor = AmberWarning, modifier = Modifier.widthIn(max = 460.dp)) {
+    Box(modifier = Modifier.fillMaxSize().background(ArenaCharcoal).padding(24.dp), contentAlignment = Alignment.Center) {
+        CyberGlassCard(glowColor = ArenaOrange, modifier = Modifier.widthIn(max = 460.dp)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Build, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(48.dp))
+                Icon(Icons.Default.Build, contentDescription = null, tint = ArenaOrange, modifier = Modifier.size(48.dp))
                 Spacer(Modifier.height(10.dp))
-                StatusPill("CYBER UPGRADE", AmberWarning)
+                StatusPill("SYSTEM MAINTENANCE", CoinYellow)
                 Spacer(Modifier.height(8.dp))
                 Text("Maintenance Mode", style = MaterialTheme.typography.headlineSmall, color = TextPrimary)
                 Spacer(Modifier.height(6.dp))
                 Text(message, color = TextSecondary, textAlign = TextAlign.Center)
                 if (eta.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))
-                    Text("Estimated return: $eta", style = MaterialTheme.typography.labelLarge, color = NeonCyan)
+                    Text("Estimated return: $eta", style = MaterialTheme.typography.labelLarge, color = ArenaOrange)
                 }
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = { AuthHelper.signOut(credentialManager, scope) },
-                    colors = ButtonDefaults.buttonColors(containerColor = ObsidianElevated, contentColor = TextPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = ArenaPurple, contentColor = Color.White)
                 ) { Text("Sign Out") }
             }
         }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -64,26 +64,138 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.model.BroadcastNotification
+import com.example.data.model.Tournament
 import com.example.data.model.UserNotification
-import com.example.ui.theme.AmberWarning
-import com.example.ui.theme.BorderGlow
+import com.example.ui.theme.ArenaCharcoal
+import com.example.ui.theme.ArenaGreen
+import com.example.ui.theme.ArenaOrange
+import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.CardDarkText
 import com.example.ui.theme.CoinGold
 import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.CrimsonDanger
-import com.example.ui.theme.ElectricViolet
-import com.example.ui.theme.EmeraldProfit
 import com.example.ui.theme.HeaderNavy
-import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.ObsidianBg
-import com.example.ui.theme.ObsidianCardGlass
 import com.example.ui.theme.ObsidianElevated
-import com.example.ui.theme.ObsidianSurface
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.utils.QrCodeUtils
+
+data class GameCategoryItem(
+    val filterKey: String,
+    val title: String,
+    val drawableKey: String
+)
+
+val DEFAULT_GAME_CATEGORIES = listOf(
+    GameCategoryItem("BGMI", "BGMI", "bgmi"),
+    GameCategoryItem("Free Fire MAX", "FF MAX", "freefire"),
+    GameCategoryItem("Clash Squad", "CS I", "freefire"),
+    GameCategoryItem("BGMI TDM", "BGMI TDM", "bgmi"),
+    GameCategoryItem("FF Survival", "FF SURVIVAL", "freefire"),
+    GameCategoryItem("Lone Wolf", "LONE WOLF", "hero"),
+    GameCategoryItem("Sniper TDM", "SNIPER TDM", "bgmi"),
+    GameCategoryItem("WOW Mode", "WOW MODE", "bgmi"),
+    GameCategoryItem("CS 4v4", "CS 4v4", "freefire"),
+    GameCategoryItem("COD Mobile", "CODM", "codm"),
+    GameCategoryItem("Valorant", "VALORANT", "hero"),
+    GameCategoryItem("All", "ALL MATCHES", "hero")
+)
+
+fun matchesCategoryFilter(match: Tournament, categoryKey: String): Boolean {
+    if (categoryKey.isBlank() || categoryKey.equals("All", ignoreCase = true)) return true
+    if (match.game.equals(categoryKey, ignoreCase = true)) return true
+    if (categoryKey.equals("Free Fire MAX", ignoreCase = true) && match.game.contains("Free Fire", ignoreCase = true)) return true
+    if (categoryKey.equals("COD Mobile", ignoreCase = true) && match.game.contains("COD", ignoreCase = true)) return true
+    return match.game.contains(categoryKey, ignoreCase = true) ||
+        match.mode.contains(categoryKey, ignoreCase = true) ||
+        match.mapName.contains(categoryKey, ignoreCase = true) ||
+        match.title.contains(categoryKey, ignoreCase = true)
+}
+
+@Composable
+fun GameCategoryGrid(
+    categories: List<GameCategoryItem> = DEFAULT_GAME_CATEGORIES,
+    tournaments: List<Tournament> = emptyList(),
+    onCategoryClick: (GameCategoryItem) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        categories.chunked(3).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                rowItems.forEach { cat ->
+                    val openCount = remember(tournaments, cat.filterKey) {
+                        tournaments.count {
+                            (it.status == "upcoming" || it.status == "live") &&
+                                matchesCategoryFilter(it, cat.filterKey)
+                        }
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        shadowElevation = 3.dp,
+                        color = HeaderNavy,
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(0.84f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onCategoryClick(cat) }
+                            .testTag("game_tile_${cat.filterKey}")
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                                Image(
+                                    painter = painterResource(id = bannerDrawableForKey(cat.drawableKey)),
+                                    contentDescription = cat.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                if (openCount > 0) {
+                                    Surface(
+                                        color = HeaderNavy.copy(alpha = 0.86f),
+                                        shape = RoundedCornerShape(50),
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(5.dp)
+                                    ) {
+                                        Text(
+                                            text = "$openCount",
+                                            color = CoinYellow,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(ArenaOrange)
+                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = cat.title,
+                                    color = Color(0xFF111827),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+                repeat(3 - rowItems.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
 
 fun bannerDrawableForKey(key: String): Int = when (key.lowercase()) {
     "freefire" -> R.drawable.img_banner_freefire
@@ -291,20 +403,20 @@ fun NotificationDrawerSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = ObsidianSurface
+        containerColor = HeaderNavy
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Text("Arena Alerts & Broadcasts", style = MaterialTheme.typography.headlineSmall, color = NeonCyan)
+            Text("Arena Alerts & Broadcasts", style = MaterialTheme.typography.headlineSmall, color = CoinYellow)
             Spacer(Modifier.height(10.dp))
             val mergedCount = notifications.size + broadcasts.size
             if (mergedCount == 0) {
                 Text(
                     "No alerts yet. Room IDs, prize wins, and broadcasts appear here.",
-                    color = TextMuted,
+                    color = TextSecondary,
                     modifier = Modifier.padding(vertical = 20.dp)
                 )
             } else {
@@ -313,39 +425,49 @@ fun NotificationDrawerSheet(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(notifications, key = { "u_${it.id}" }) { n ->
-                        CyberGlassCard(
-                            glowColor = if (n.read) TextMuted else NeonCyan,
-                            onClick = {
-                                onMarkNotificationRead(n.id)
-                                onDismiss()
-                                onNavigate(n.route)
-                            }
+                        Surface(
+                            color = Color.White,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onMarkNotificationRead(n.id)
+                                    onDismiss()
+                                    onNavigate(n.route)
+                                }
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(n.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary, modifier = Modifier.weight(1f))
-                                if (!n.read) StatusPill("NEW", NeonCyan)
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(n.title, fontWeight = FontWeight.Bold, color = CardDarkText, modifier = Modifier.weight(1f))
+                                    if (!n.read) StatusPill("NEW", ArenaOrange)
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(n.body, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF475569))
                             }
-                            Spacer(Modifier.height(4.dp))
-                            Text(n.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                         }
                     }
                     items(broadcasts, key = { "b_${it.id}" }) { b ->
-                        CyberGlassCard(
-                            glowColor = ElectricViolet,
-                            onClick = {
-                                onDismiss()
-                                onNavigate(b.redirectRoute)
-                            }
+                        Surface(
+                            color = Color.White,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onDismiss()
+                                    onNavigate(b.redirectRoute)
+                                }
                         ) {
-                            StatusPill("BROADCAST", ElectricViolet)
-                            Spacer(Modifier.height(6.dp))
-                            Text(b.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                            Spacer(Modifier.height(4.dp))
-                            Text(b.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                StatusPill("BROADCAST", ArenaPurple)
+                                Spacer(Modifier.height(6.dp))
+                                Text(b.title, fontWeight = FontWeight.Bold, color = CardDarkText)
+                                Spacer(Modifier.height(4.dp))
+                                Text(b.body, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF475569))
+                            }
                         }
                     }
                 }
@@ -404,18 +526,14 @@ fun ArenaBrandEmblem(
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(size * 0.28f))
-            .background(
-                Brush.linearGradient(
-                    listOf(Color(0xFF0A1124), Color(0xFF1A1038))
-                )
-            )
+            .clip(CircleShape)
+            .background(HeaderNavy)
             .border(
-                width = 1.8.dp,
-                brush = Brush.linearGradient(listOf(NeonCyan, ElectricViolet, EmeraldProfit)),
-                shape = RoundedCornerShape(size * 0.28f)
+                width = 2.4.dp,
+                brush = Brush.linearGradient(listOf(CoinYellow, ArenaOrange, ArenaPurple)),
+                shape = CircleShape
             )
-            .padding(size * 0.1f),
+            .padding(size * 0.12f),
         contentAlignment = Alignment.Center
     ) {
         Image(
@@ -430,24 +548,18 @@ fun ArenaBrandEmblem(
 @Composable
 fun CyberGlassCard(
     modifier: Modifier = Modifier,
-    glowColor: Color = NeonCyan,
+    glowColor: Color = ArenaOrange,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(14.dp)
     val baseModifier = modifier
         .fillMaxWidth()
         .clip(shape)
-        .background(
-            Brush.verticalGradient(
-                listOf(ObsidianElevated.copy(alpha = 0.92f), ObsidianCardGlass)
-            )
-        )
+        .background(HeaderNavy)
         .border(
             width = 1.dp,
-            brush = Brush.linearGradient(
-                listOf(glowColor.copy(alpha = 0.45f), ElectricViolet.copy(alpha = 0.25f))
-            ),
+            color = glowColor.copy(alpha = 0.42f),
             shape = shape
         )
         .let { if (onClick != null) it.clickable { onClick() } else it }
@@ -465,16 +577,16 @@ fun NeonPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     icon: ImageVector? = null,
-    accentColor: Color = NeonCyan
+    accentColor: Color = ArenaOrange
 ) {
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(50.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = accentColor,
-            contentColor = ObsidianBg,
+            contentColor = if (accentColor == CoinYellow) Color(0xFF111827) else Color.White,
             disabledContainerColor = ObsidianElevated,
             disabledContentColor = TextMuted
         )
@@ -528,11 +640,11 @@ fun StatusToastBanner(
         modifier = modifier
     ) {
         banner?.let { (ok, message) ->
-            val accent = if (ok) EmeraldProfit else CrimsonDanger
+            val accent = if (ok) ArenaGreen else CrimsonDanger
             Card(
-                colors = CardDefaults.cardColors(containerColor = ObsidianElevated),
+                colors = CardDefaults.cardColors(containerColor = HeaderNavy),
                 border = BorderStroke(1.dp, accent.copy(alpha = 0.7f)),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -598,7 +710,7 @@ fun SectionHeader(
             Text(
                 text = actionLabel,
                 style = MaterialTheme.typography.labelLarge,
-                color = NeonCyan,
+                color = ArenaOrange,
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable { onAction() }
@@ -613,8 +725,8 @@ fun SlotsProgressBar(filled: Long, max: Long) {
     val progress = if (max > 0) (filled.toFloat() / max.toFloat()).coerceIn(0f, 1f) else 0f
     val barColor = when {
         progress >= 0.9f -> CrimsonDanger
-        progress >= 0.6f -> AmberWarning
-        else -> NeonCyan
+        progress >= 0.6f -> ArenaOrange
+        else -> ArenaPurple
     }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -649,14 +761,14 @@ fun SlotsProgressBar(filled: Long, max: Long) {
 fun KpiMiniStat(
     label: String,
     value: String,
-    accent: Color = NeonCyan,
+    accent: Color = ArenaOrange,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(ObsidianElevated.copy(alpha = 0.85f))
-            .border(1.dp, BorderGlow.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(HeaderNavy)
+            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
             .padding(12.dp)
     ) {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = TextMuted, maxLines = 1)

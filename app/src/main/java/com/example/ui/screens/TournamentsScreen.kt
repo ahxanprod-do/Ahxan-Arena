@@ -81,22 +81,23 @@ import com.example.data.model.RoomSecret
 import com.example.data.model.Tournament
 import com.example.data.model.UserProfile
 import com.example.ui.components.CoinBadge
+import com.example.ui.components.DEFAULT_GAME_CATEGORIES
+import com.example.ui.components.GameCategoryGrid
 import com.example.ui.components.MatchBannerImage
 import com.example.ui.components.StatusPill
 import com.example.ui.components.SubScreenTopBar
+import com.example.ui.components.matchesCategoryFilter
 import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.ArenaBlue
+import com.example.ui.theme.ArenaCharcoal
 import com.example.ui.theme.ArenaGreen
 import com.example.ui.theme.ArenaOrange
 import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.CardDarkText
 import com.example.ui.theme.CardMutedText
+import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.CrimsonDanger
-import com.example.ui.theme.EmeraldProfit
 import com.example.ui.theme.HeaderNavy
-import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.ObsidianBg
-import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.utils.ArenaFormatters
 import kotlinx.coroutines.delay
@@ -107,8 +108,10 @@ fun TournamentsScreen(
     tournaments: List<Tournament>,
     joinedMatches: List<MatchSlot>,
     generalConfig: GeneralConfig = GeneralConfig(),
-    initialGameFilter: String = "All",
+    selectedCategory: String? = null,
     initialStatusTab: Int = 1,
+    onSelectCategory: (String) -> Unit = {},
+    onClearCategory: () -> Unit = {},
     onOpenMyMatches: () -> Unit = {},
     onSelectTournament: (Tournament) -> Unit
 ) {
@@ -116,18 +119,106 @@ fun TournamentsScreen(
     val tabs = listOf("ONGOING", "UPCOMING", "RESULTS")
     val statusKeys = listOf("live", "upcoming", "completed")
     var selectedTab by remember(initialStatusTab) { mutableStateOf(initialStatusTab.coerceIn(0, 2)) }
-    var selectedGame by remember(initialGameFilter) { mutableStateOf(initialGameFilter) }
-    var selectedMode by remember { mutableStateOf("All") }
-    var selectedEntry by remember { mutableStateOf("All") }
+
+    if (selectedCategory == null) {
+        // STEP 1: Game Categories First (Home Theme Charcoal + Orange Category Bars)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(ArenaCharcoal)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                SubScreenTopBar(
+                    title = "eSport Games",
+                    containerColor = HeaderNavy
+                )
+
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 84.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(136.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(1.dp, ArenaOrange.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
+                                .testTag("matches_admin_hero_banner")
+                        ) {
+                            MatchBannerImage(
+                                bannerUrl = generalConfig.matchesHeroBannerUrl,
+                                bannerKey = generalConfig.matchesHeroBannerKey,
+                                contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Arena Banner" },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Brush.verticalGradient(listOf(Color.Transparent, HeaderNavy.copy(alpha = 0.88f))))
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(12.dp)
+                            ) {
+                                StatusPill(label = "SELECT GAME TO PLAY", color = ArenaOrange)
+                                if (generalConfig.matchesHeroTitle.isNotBlank()) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(generalConfig.matchesHeroTitle, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "Choose a Category",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            GameCategoryGrid(
+                                categories = DEFAULT_GAME_CATEGORIES,
+                                tournaments = tournaments,
+                                onCategoryClick = { cat -> onSelectCategory(cat.filterKey) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            FloatingActionButton(
+                onClick = onOpenMyMatches,
+                containerColor = ArenaPurple,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.EmojiEvents, contentDescription = "My Matches & Leaderboard")
+            }
+        }
+        return
+    }
+
+    // STEP 2: Matches List for Selected Game Category (Purple Screenshot 162334)
+    BackHandler { onClearCategory() }
 
     val statusKey = statusKeys[selectedTab]
-    val filtered = remember(tournaments, statusKey, selectedGame, selectedMode, selectedEntry) {
+    val filtered = remember(tournaments, statusKey, selectedCategory) {
         tournaments.filter { m ->
-            m.status == statusKey &&
-                (selectedGame == "All" || m.game.equals(selectedGame, ignoreCase = true)) &&
-                (selectedMode == "All" || m.mode.equals(selectedMode, ignoreCase = true)) &&
-                (selectedEntry == "All" || m.entryType.equals(selectedEntry, ignoreCase = true))
+            m.status == statusKey && matchesCategoryFilter(m, selectedCategory)
         }
+    }
+
+    val categoryHeaderTitle = if (selectedCategory.equals("All", ignoreCase = true)) {
+        "ALL MATCHES"
+    } else {
+        selectedCategory.uppercase()
     }
 
     Box(
@@ -137,53 +228,10 @@ fun TournamentsScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             SubScreenTopBar(
-                title = if (selectedGame == "All") "ESPORTS TOURNAMENTS" else selectedGame.uppercase(),
+                title = categoryHeaderTitle,
                 containerColor = HeaderNavy,
-                onBack = if (selectedGame != "All") { { selectedGame = "All" } } else null
+                onBack = onClearCategory
             )
-
-            // Admin-controlled Matches Hero Banner above matches
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(HeaderNavy)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .border(1.dp, ArenaOrange.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                        .testTag("matches_admin_hero_banner")
-                ) {
-                    MatchBannerImage(
-                        bannerUrl = generalConfig.matchesHeroBannerUrl,
-                        bannerKey = generalConfig.matchesHeroBannerKey,
-                        contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Arena Banner" },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.85f))))
-                    )
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(12.dp)
-                    ) {
-                        StatusPill(label = "FEATURED ARENA", color = ArenaOrange)
-                        if (generalConfig.matchesHeroTitle.isNotBlank()) {
-                            Spacer(Modifier.height(3.dp))
-                            Text(generalConfig.matchesHeroTitle, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        }
-                        if (generalConfig.matchesHeroSubtitle.isNotBlank()) {
-                            Text(generalConfig.matchesHeroSubtitle, color = Color(0xFFE2E8F0), fontSize = 11.sp)
-                        }
-                    }
-                }
-            }
 
             // Purple TabRow: ONGOING | UPCOMING | RESULTS
             TabRow(
@@ -214,89 +262,77 @@ fun TournamentsScreen(
                 }
             }
 
-            // Quick Filter Chips Row
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            LazyColumn(
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 84.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxSize()
             ) {
-                items(listOf("All", "BGMI", "Free Fire MAX", "COD Mobile", "Valorant")) { g ->
-                    FilterChip(
-                        selected = selectedGame == g,
-                        onClick = { selectedGame = g },
-                        label = { Text(g, fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color.White,
-                            selectedLabelColor = ArenaPurple,
-                            containerColor = Color.White.copy(alpha = 0.16f),
-                            labelColor = Color.White
-                        ),
-                        border = null
-                    )
-                }
-                items(listOf("Solo", "Duo", "Squad")) { mode ->
-                    FilterChip(
-                        selected = selectedMode == mode,
-                        onClick = { selectedMode = if (selectedMode == mode) "All" else mode },
-                        label = { Text(mode, fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = ArenaOrange,
-                            selectedLabelColor = Color.White,
-                            containerColor = Color.White.copy(alpha = 0.16f),
-                            labelColor = Color.White
-                        ),
-                        border = null
-                    )
-                }
-                items(listOf("Free", "Paid")) { entry ->
-                    FilterChip(
-                        selected = selectedEntry == entry,
-                        onClick = { selectedEntry = if (selectedEntry == entry) "All" else entry },
-                        label = { Text(entry, fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = ArenaGreen,
-                            selectedLabelColor = Color.White,
-                            containerColor = Color.White.copy(alpha = 0.16f),
-                            labelColor = Color.White
-                        ),
-                        border = null
-                    )
-                }
-            }
-
-            if (filtered.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        color = Color.White,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
+                // Admin-controlled Matches Hero Banner inside the purple list (Screenshot 162334)
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .testTag("matches_admin_hero_banner")
                     ) {
+                        MatchBannerImage(
+                            bannerUrl = generalConfig.matchesHeroBannerUrl,
+                            bannerKey = generalConfig.matchesHeroBannerKey,
+                            contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Arena Banner" },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Brush.verticalGradient(listOf(Color.Transparent, HeaderNavy.copy(alpha = 0.82f))))
+                        )
                         Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(12.dp)
                         ) {
-                            Text(
-                                text = "No ${tabs[selectedTab].lowercase()} matches found",
-                                color = CardDarkText,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = "Try switching game filters or checking the Upcoming tab.",
-                                color = CardMutedText,
-                                fontSize = 13.sp
-                            )
+                            if (generalConfig.matchesHeroTitle.isNotBlank()) {
+                                Text(generalConfig.matchesHeroTitle, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                            if (generalConfig.matchesHeroSubtitle.isNotBlank()) {
+                                Text(generalConfig.matchesHeroSubtitle, color = Color(0xFFE2E8F0), fontSize = 11.sp)
+                            }
                         }
                     }
                 }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 84.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
+
+                if (filtered.isEmpty()) {
+                    item {
+                        Surface(
+                            color = Color.White,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "No ${tabs[selectedTab].lowercase()} matches in $categoryHeaderTitle",
+                                    color = CardDarkText,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    text = "Check Upcoming or tap Back to pick another game category.",
+                                    color = CardMutedText,
+                                    fontSize = 13.sp
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                OutlinedButton(onClick = onClearCategory) {
+                                    Text("Browse All Categories", color = ArenaPurple, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                } else {
                     items(filtered, key = { it.id }) { match ->
                         val alreadyJoined = joinedMatches.any {
                             it.matchId == match.id && it.status != "kicked" && it.status != "refunded"
@@ -311,16 +347,16 @@ fun TournamentsScreen(
             }
         }
 
-        // Purple Trophy FAB bottom-right matching screenshot
+        // Purple Trophy FAB bottom-right matching screenshot 162334
         FloatingActionButton(
             onClick = onOpenMyMatches,
-            containerColor = HeaderNavy,
+            containerColor = ArenaPurple,
             contentColor = Color.White,
             shape = CircleShape,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
-                .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                .border(1.5.dp, Color.White.copy(alpha = 0.4f), CircleShape)
         ) {
             Icon(Icons.Default.EmojiEvents, contentDescription = "My Matches & Leaderboard")
         }
@@ -514,7 +550,7 @@ fun TournamentDetailSheet(
                     Surface(
                         color = HeaderNavy,
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
+                        border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.55f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -526,7 +562,7 @@ fun TournamentDetailSheet(
                             Text(
                                 text = "Slot #${selectedSlotNum ?: (match.filledSlots + 1)} Registration",
                                 style = MaterialTheme.typography.titleLarge,
-                                color = NeonCyan
+                                color = CoinYellow
                             )
                             Spacer(Modifier.height(10.dp))
                             OutlinedTextField(
@@ -588,7 +624,7 @@ fun TournamentDetailSheet(
                                         value = couponCode,
                                         onValueChange = { couponCode = it.uppercase() },
                                         label = { Text("Match Coupon (FIRST50)") },
-                                        leadingIcon = { Icon(Icons.Default.LocalOffer, contentDescription = null, tint = NeonCyan) },
+                                        leadingIcon = { Icon(Icons.Default.LocalOffer, contentDescription = null, tint = ArenaOrange) },
                                         singleLine = true,
                                         modifier = Modifier.weight(1f).testTag("join_coupon_input")
                                     )
@@ -610,7 +646,7 @@ fun TournamentDetailSheet(
                                 if (appliedCoupon != null) {
                                     Text(
                                         text = "Applied ${appliedCoupon!!.code}: -${ArenaFormatters.formatInr(discount)} OFF!",
-                                        color = EmeraldProfit,
+                                        color = ArenaGreen,
                                         style = MaterialTheme.typography.labelLarge,
                                         modifier = Modifier.padding(top = 4.dp)
                                     )

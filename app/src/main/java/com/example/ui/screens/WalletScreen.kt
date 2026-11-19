@@ -95,17 +95,11 @@ import com.example.ui.theme.ArenaOrange
 import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.CardDarkText
 import com.example.ui.theme.CardMutedText
+import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.CrimsonDanger
-import com.example.ui.theme.ElectricViolet
-import com.example.ui.theme.EmeraldProfit
 import com.example.ui.theme.HeaderNavy
-import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.ObsidianBg
-import com.example.ui.theme.ObsidianElevated
-import com.example.ui.theme.ObsidianSurface
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
 import com.example.utils.ArenaFormatters
 import com.example.utils.QrCodeUtils
 import kotlinx.coroutines.delay
@@ -565,17 +559,17 @@ fun WalletScreen(
 
     // Available Offers Drawer
     if (showOffersSheet) {
-        ModalBottomSheet(onDismissRequest = { showOffersSheet = false }, containerColor = ObsidianSurface) {
+        ModalBottomSheet(onDismissRequest = { showOffersSheet = false }, containerColor = Color.White) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                Text("Available Deposit Offers", style = MaterialTheme.typography.headlineSmall, color = AmberWarning)
+                Text("Available Deposit Offers", style = MaterialTheme.typography.headlineSmall, color = HeaderNavy, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
                 if (depositOffers.isEmpty()) {
-                    Text("No active deposit promo codes right now.", color = TextMuted, modifier = Modifier.padding(vertical = 16.dp))
+                    Text("No active deposit promo codes right now.", color = CardMutedText, modifier = Modifier.padding(vertical = 16.dp))
                 } else {
                     depositOffers.forEach { coupon ->
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = ObsidianElevated),
-                            border = BorderStroke(1.dp, AmberWarning.copy(alpha = 0.5f)),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                            border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.55f)),
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
                         ) {
@@ -585,8 +579,8 @@ fun WalletScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(coupon.code, style = MaterialTheme.typography.titleLarge, color = NeonCyan)
-                                    Text(coupon.description.ifBlank { "Min deposit ₹${coupon.minAmount.toInt()}" }, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                    Text(coupon.code, style = MaterialTheme.typography.titleLarge, color = ArenaPurple, fontWeight = FontWeight.ExtraBold)
+                                    Text(coupon.description.ifBlank { "Min deposit ₹${coupon.minAmount.toInt()}" }, style = MaterialTheme.typography.bodyMedium, color = CardMutedText)
                                 }
                                 Button(
                                     onClick = {
@@ -594,9 +588,9 @@ fun WalletScreen(
                                         showOffersSheet = false
                                         showDepositSheet = true
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = AmberWarning, contentColor = ObsidianBg)
+                                    colors = ButtonDefaults.buttonColors(containerColor = ArenaOrange, contentColor = Color.White)
                                 ) {
-                                    Text("Apply")
+                                    Text("Apply", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -939,13 +933,13 @@ private fun PayZapiCheckoutSheet(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Surface(
-                color = ArenaPurple.copy(alpha = 0.25f),
-                border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
+                color = ArenaPurple.copy(alpha = 0.35f),
+                border = BorderStroke(1.dp, CoinYellow.copy(alpha = 0.65f)),
                 shape = RoundedCornerShape(50)
             ) {
                 Text(
                     text = "IN-APP PAYMENT QR • AUTO-VERIFYING EVERY 6s",
-                    color = NeonCyan,
+                    color = CoinYellow,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
@@ -959,7 +953,7 @@ private fun PayZapiCheckoutSheet(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = ArenaFormatters.formatInr(order.amount),
-                    color = EmeraldProfit,
+                    color = ArenaGreen,
                     fontSize = 30.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
@@ -1026,12 +1020,12 @@ private fun PayZapiCheckoutSheet(
                             ).show()
                         },
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.6f)),
+                        border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.8f)),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Download, contentDescription = null, tint = ArenaOrange, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Save QR", color = NeonCyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Save QR", color = ArenaOrange, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
                 if (order.upiIntentUrl.isNotBlank()) {
@@ -1084,7 +1078,7 @@ private fun PayZapiCheckoutSheet(
                     }
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("Order: ${order.payzapiOrderId}", color = TextSecondary, fontSize = 11.sp)
+                Text("Order: ${order.payzapiOrderId}", color = TextMuted, fontSize = 11.sp)
                 Spacer(Modifier.width(4.dp))
                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy Order ID", tint = TextMuted, modifier = Modifier.size(13.dp))
             }

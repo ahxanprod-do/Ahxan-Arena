@@ -313,7 +313,7 @@ data class GeneralConfig(
     @DocumentId val id: String = "",
     val tickerText: String = "WELCOME TO AHXAN ARENA • LIVE BGMI & FREE FIRE SCRIMS • INSTANT PAYZAPI DEPOSITS & WITHDRAWALS",
     val maintenanceMode: Boolean = false,
-    val maintenanceMessage: String = "Arena servers are undergoing scheduled cyber-upgrade.",
+    val maintenanceMessage: String = "Arena servers are undergoing scheduled maintenance.",
     val maintenanceEta: String = "15 mins",
     val rulesText: String = "1. Emulators & third-party hacks result in instant permanent ban.\n2. Join room 10 minutes before match start.\n3. Screenshots required for dispute resolution.",
     val termsText: String = "All prizes are credited to Winning Wallet after match verification.",
@@ -327,7 +327,7 @@ data class GeneralConfig(
     val bonusUsablePercent: Long = 10L,
     val matchesHeroBannerUrl: String = "",
     val matchesHeroBannerKey: String = "bgmi",
-    val matchesHeroTitle: String = "CYBER ESPORTS CHAMPIONSHIPS",
+    val matchesHeroTitle: String = "AHXAN ARENA CHAMPIONSHIPS",
     val matchesHeroSubtitle: String = "Daily Competitive Scrims • Instant PayZapi Payouts",
     @ServerTimestamp val updatedAt: Timestamp? = null
 )

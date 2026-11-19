@@ -2,26 +2,7 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val ObsidianBg = Color(0xFF07090E)
-val ObsidianSurface = Color(0xFF0E131E)
-val ObsidianElevated = Color(0xFF151D2E)
-val ObsidianCardGlass = Color(0xCC111827)
-
-val NeonCyan = Color(0xFF00F0FF)
-val NeonCyanDim = Color(0x3300F0FF)
-val ElectricViolet = Color(0xFF7B2CBF)
-val NeonViolet = Color(0xFFA855F7)
-val EmeraldProfit = Color(0xFF00FF9D)
-val AmberWarning = Color(0xFFFFB800)
-val CrimsonDanger = Color(0xFFFF3B5C)
-
-val TextPrimary = Color(0xFFF3F7FF)
-val TextSecondary = Color(0xFFB3C0D9)
-val TextMuted = Color(0xFF7B89A6)
-val BorderGlow = Color(0x4D00F0FF)
-val BorderSubtle = Color(0x26FFFFFF)
-
-// Grind-Battle / Ahxan Arena Signature UI Tokens
+// Unified Home-Page Theme Tokens (Grind-Battle / Ahxan Arena)
 val HeaderNavy = Color(0xFF1F2430)
 val ArenaCharcoal = Color(0xFF2B2B2B)
 val BottomNavBg = Color(0xFF2B303A)
@@ -35,3 +16,22 @@ val LightSheetBg = Color(0xFFF3F4F6)
 val CardDarkText = Color(0xFF1E293B)
 val CardMutedText = Color(0xFF64748B)
 
+// Theme-aligned semantic aliases across Admin & secondary modules (replacing Cyber palette)
+val ObsidianBg = ArenaCharcoal
+val ObsidianSurface = HeaderNavy
+val ObsidianElevated = Color(0xFF262C3A)
+val ObsidianCardGlass = Color(0xFF1F2430)
+
+val NeonCyan = ArenaOrange
+val NeonCyanDim = Color(0x33F97316)
+val ElectricViolet = ArenaPurple
+val NeonViolet = Color(0xFF9333EA)
+val EmeraldProfit = ArenaGreen
+val AmberWarning = CoinYellow
+val CrimsonDanger = Color(0xFFEF4444)
+
+val TextPrimary = Color(0xFFF8FAFC)
+val TextSecondary = Color(0xFFCBD5E1)
+val TextMuted = Color(0xFF94A3B8)
+val BorderGlow = Color(0x4DF97316)
+val BorderSubtle = Color(0x26FFFFFF)

@@ -94,13 +94,12 @@ import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.ArenaBlue
 import com.example.ui.theme.ArenaCharcoal
 import com.example.ui.theme.ArenaGreen
+import com.example.ui.theme.ArenaOrange
 import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.CardDarkText
 import com.example.ui.theme.CardMutedText
 import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.HeaderNavy
-import com.example.ui.theme.ObsidianSurface
-import com.example.ui.theme.TextSecondary
 
 @Composable
 fun ProfileAndMoreScreen(
@@ -492,11 +491,11 @@ fun ProfileAndMoreScreen(
     if (infoDialogTitle != null) {
         AlertDialog(
             onDismissRequest = { infoDialogTitle = null },
-            containerColor = ObsidianSurface,
-            title = { Text(infoDialogTitle!!, style = MaterialTheme.typography.titleLarge, color = CoinYellow) },
+            containerColor = Color.White,
+            title = { Text(infoDialogTitle!!, style = MaterialTheme.typography.titleLarge, color = HeaderNavy, fontWeight = FontWeight.Bold) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text(infoDialogBody, color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
+                    Text(infoDialogBody, color = CardDarkText, style = MaterialTheme.typography.bodyMedium)
                     if (infoDialogTitle == "About Us" && (generalConfig.telegramUrl.isNotBlank() || generalConfig.discordUrl.isNotBlank())) {
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -516,7 +515,7 @@ fun ProfileAndMoreScreen(
             },
             confirmButton = {
                 TextButton(onClick = { infoDialogTitle = null }) {
-                    Text("Close", color = CoinYellow)
+                    Text("Close", color = ArenaOrange, fontWeight = FontWeight.Bold)
                 }
             }
         )

@@ -8,7 +8,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,8 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -41,10 +38,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,6 +72,8 @@ import com.example.data.model.UserProfile
 import com.example.notifications.ArenaNotificationHelper
 import com.example.ui.components.ArenaTopHeader
 import com.example.ui.components.CoinBadge
+import com.example.ui.components.DEFAULT_GAME_CATEGORIES
+import com.example.ui.components.GameCategoryGrid
 import com.example.ui.components.MatchBannerImage
 import com.example.ui.components.NotificationDrawerSheet
 import com.example.ui.components.StatusPill
@@ -88,19 +86,9 @@ import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.CardDarkText
 import com.example.ui.theme.CardMutedText
 import com.example.ui.theme.CrimsonDanger
-import com.example.ui.theme.EmeraldProfit
 import com.example.ui.theme.HeaderNavy
-import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.ObsidianBg
-import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.utils.ArenaFormatters
-
-private data class GameTile(
-    val filterKey: String,
-    val title: String,
-    val drawableKey: String
-)
 
 @Composable
 fun HomeLobbyScreen(
@@ -114,7 +102,7 @@ fun HomeLobbyScreen(
     onNavigate: (String) -> Unit,
     onOpenGameTournaments: (String) -> Unit = { onNavigate("tournaments") },
     onOpenContestTab: (Int) -> Unit = { onNavigate("tournaments") },
-    onSelectTournament: (Tournament) -> Unit,
+    onSelectTournament: (Tournament) -> Unit = {},
     onMarkNotificationRead: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -139,15 +127,6 @@ fun HomeLobbyScreen(
                 CmsBanner(id = "d3", title = "REFER & EARN", subtitle = "Invite squadmates for instant coins", drawableKey = "codm", redirectRoute = "refer")
             )
         }
-    }
-
-    val gameTiles = remember {
-        listOf(
-            GameTile("BGMI", "BGMI", "bgmi"),
-            GameTile("Free Fire MAX", "FF MAX", "freefire"),
-            GameTile("COD Mobile", "CODM", "codm"),
-            GameTile("Valorant", "VALORANT", "hero")
-        )
     }
 
     Column(
@@ -320,7 +299,7 @@ fun HomeLobbyScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .background(
-                                        Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.88f)))
+                                        Brush.verticalGradient(listOf(Color.Transparent, HeaderNavy.copy(alpha = 0.88f)))
                                     )
                             )
                             Column(
@@ -396,7 +375,7 @@ fun HomeLobbyScreen(
                     Surface(
                         color = HeaderNavy,
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, EmeraldProfit.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, ArenaGreen.copy(alpha = 0.45f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -409,17 +388,17 @@ fun HomeLobbyScreen(
                                     modifier = Modifier
                                         .size(40.dp)
                                         .clip(CircleShape)
-                                        .background(EmeraldProfit.copy(alpha = 0.16f)),
+                                        .background(ArenaGreen.copy(alpha = 0.16f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = EmeraldProfit)
+                                    Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = ArenaGreen)
                                 }
                                 Spacer(Modifier.width(10.dp))
                                 Column {
                                     Text("Daily Check-In ($streak/7)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     Text(
                                         text = if (alreadyCheckedIn) "Today's +$todayReward Bonus claimed!" else "Claim Day $nextDay reward: +$todayReward Coins",
-                                        color = if (alreadyCheckedIn) TextSecondary else EmeraldProfit,
+                                        color = if (alreadyCheckedIn) TextSecondary else ArenaGreen,
                                         fontSize = 12.sp
                                     )
                                 }
@@ -428,8 +407,8 @@ fun HomeLobbyScreen(
                                 onClick = onClaimCheckIn,
                                 enabled = !alreadyCheckedIn,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = EmeraldProfit,
-                                    contentColor = ObsidianBg,
+                                    containerColor = ArenaGreen,
+                                    contentColor = Color.White,
                                     disabledContainerColor = Color(0xFF374151),
                                     disabledContentColor = Color(0xFF9CA3AF)
                                 ),
@@ -443,7 +422,7 @@ fun HomeLobbyScreen(
                 }
             }
 
-            // eSport Games Cards Grid/Row (Image + Solid Orange Footer)
+            // 3-Column eSport Games Categories Grid (matches Screenshot 162310 — click any category to view its matches)
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
@@ -452,63 +431,15 @@ fun HomeLobbyScreen(
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(gameTiles, key = { it.filterKey }) { tile ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                shadowElevation = 3.dp,
-                                modifier = Modifier
-                                    .width(118.dp)
-                                    .height(142.dp)
-                                    .clickable { onOpenGameTournaments(tile.filterKey) }
-                                    .testTag("game_tile_${tile.filterKey}")
-                            ) {
-                                Column(modifier = Modifier.fillMaxSize()) {
-                                    Image(
-                                        painter = painterResource(id = bannerDrawableForKey(tile.drawableKey)),
-                                        contentDescription = tile.title,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxWidth().weight(1f)
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(ArenaOrange)
-                                            .padding(vertical = 6.dp, horizontal = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = tile.title,
-                                            color = Color(0xFF111827),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    GameCategoryGrid(
+                        categories = DEFAULT_GAME_CATEGORIES,
+                        tournaments = tournaments,
+                        onCategoryClick = { cat -> onOpenGameTournaments(cat.filterKey) }
+                    )
                 }
             }
 
-            // Live & Upcoming Highlights right below games
-            val spotlight = tournaments.filter { it.status == "upcoming" || it.status == "live" }.take(4)
-            if (spotlight.isNotEmpty()) {
-                item {
-                    Text(
-                        text = "Featured Matches",
-                        color = Color.White,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                items(spotlight, key = { it.id }) { match ->
-                    TournamentLobbyCard(match = match, onClick = { onSelectTournament(match) })
-                }
-            }
+            item { Spacer(Modifier.height(12.dp)) }
         }
     }
 
@@ -641,7 +572,7 @@ fun TournamentLobbyCard(
                     if (isJoined) {
                         StatusPill("JOINED", ArenaGreen)
                     } else if (match.status == "live") {
-                        StatusPill("LIVE", EmeraldProfit)
+                        StatusPill("LIVE", ArenaGreen)
                     }
                 }
             }

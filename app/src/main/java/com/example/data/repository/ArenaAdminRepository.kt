@@ -149,7 +149,7 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
 
             val sampleMatches = listOf(
                 mapOf(
-                    "title" to "BGMI Cyber Vanguard Scrims #1",
+                    "title" to "BGMI Arena Classic Scrims #1",
                     "game" to "BGMI",
                     "mode" to "Squad",
                     "mapName" to "Erangel",
@@ -258,7 +258,7 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
             )
 
             val banners = listOf(
-                mapOf("title" to "BGMI MEGA CYBER SERIES", "subtitle" to "₹2,500 Prize Pool • Use FIRST50 for 50% OFF", "drawableKey" to "bgmi", "redirectRoute" to "tournaments", "active" to true, "sortOrder" to 1L, "createdAt" to FieldValue.serverTimestamp()),
+                mapOf("title" to "BGMI MEGA ARENA SERIES", "subtitle" to "₹2,500 Prize Pool • Use FIRST50 for 50% OFF", "drawableKey" to "bgmi", "redirectRoute" to "tournaments", "active" to true, "sortOrder" to 1L, "createdAt" to FieldValue.serverTimestamp()),
                 mapOf("title" to "PAYZAPI INSTANT BONUS", "subtitle" to "Apply WELCOME20 for +20% Extra Deposit Bonus", "drawableKey" to "freefire", "redirectRoute" to "wallet", "active" to true, "sortOrder" to 2L, "createdAt" to FieldValue.serverTimestamp()),
                 mapOf("title" to "REFER & EARN ₹25/FRIEND", "subtitle" to "Instant bonus on friend's first verified deposit", "drawableKey" to "codm", "redirectRoute" to "refer", "active" to true, "sortOrder" to 3L, "createdAt" to FieldValue.serverTimestamp())
             )
@@ -269,14 +269,14 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                 mapOf(
                     "tickerText" to "AHXAN ARENA LIVE • USE WELCOME20 FOR 20% DEPOSIT BONUS • USE FIRST50 ON MATCH ENTRY • INSTANT PAYZAPI UPI SETTLEMENT",
                     "maintenanceMode" to false,
-                    "maintenanceMessage" to "Scheduled cyber-arena upgrade in progress.",
+                    "maintenanceMessage" to "Scheduled arena maintenance in progress.",
                     "maintenanceEta" to "15 mins",
                     "checkinEnabled" to true,
                     "checkinRewards" to listOf(5L, 8L, 10L, 12L, 15L, 20L, 50L),
                     "bonusUsablePercent" to 10L,
                     "matchesHeroBannerUrl" to "",
                     "matchesHeroBannerKey" to "bgmi",
-                    "matchesHeroTitle" to "CYBER ESPORTS CHAMPIONSHIPS",
+                    "matchesHeroTitle" to "AHXAN ARENA CHAMPIONSHIPS",
                     "matchesHeroSubtitle" to "Daily Competitive Scrims • Instant PayZapi Payouts",
                     "updatedAt" to FieldValue.serverTimestamp()
                 )

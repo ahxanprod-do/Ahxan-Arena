@@ -415,15 +415,30 @@ fun AdminTournamentEngineModule(
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Match Title") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(listOf("BGMI", "Free Fire MAX", "COD Mobile", "Valorant")) { g ->
+                    items(
+                        listOf(
+                            "BGMI",
+                            "Free Fire MAX",
+                            "Clash Squad",
+                            "BGMI TDM",
+                            "FF Survival",
+                            "Lone Wolf",
+                            "Sniper TDM",
+                            "WOW Mode",
+                            "CS 4v4",
+                            "COD Mobile",
+                            "Valorant"
+                        )
+                    ) { g ->
                         FilterChip(
                             selected = game == g,
                             onClick = {
                                 game = g
                                 if (bannerUrl.isBlank() && init.id.isBlank()) {
                                     bannerKey = when {
-                                        g.contains("Free", true) -> "freefire"
+                                        g.contains("Free", true) || g.contains("Clash", true) || g.contains("FF", true) || g.contains("CS", true) -> "freefire"
                                         g.contains("COD", true) -> "codm"
+                                        g.contains("Lone", true) || g.contains("Valorant", true) -> "hero"
                                         else -> "bgmi"
                                     }
                                 }

@@ -3,7 +3,6 @@ package com.example.ui.screens
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +34,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -52,7 +50,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -60,20 +57,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
 import com.example.data.auth.AuthHelper
 import com.example.ui.components.ArenaBrandEmblem
-import com.example.ui.components.CyberGlassCard
-import com.example.ui.components.StatusPill
-import com.example.ui.theme.AmberWarning
+import com.example.ui.theme.ArenaCharcoal
+import com.example.ui.theme.ArenaGreen
+import com.example.ui.theme.ArenaOrange
+import com.example.ui.theme.ArenaPurple
+import com.example.ui.theme.CardDarkText
+import com.example.ui.theme.CardMutedText
+import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.CrimsonDanger
-import com.example.ui.theme.ElectricViolet
-import com.example.ui.theme.EmeraldProfit
-import com.example.ui.theme.NeonCyan
-import com.example.ui.theme.ObsidianBg
-import com.example.ui.theme.ObsidianElevated
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.HeaderNavy
 import com.example.ui.theme.TextSecondary
 
 @Composable
@@ -90,10 +86,7 @@ fun AuthScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    // Player Login fields
     var loginEmail by remember { mutableStateOf("") }
-
-    // Player Register fields
     var regUsername by remember { mutableStateOf("") }
     var regGameName by remember { mutableStateOf("") }
     var regGameUid by remember { mutableStateOf("") }
@@ -146,56 +139,64 @@ fun AuthScreen(
     }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = NeonCyan,
-        unfocusedBorderColor = Color(0x33FFFFFF),
-        focusedTextColor = TextPrimary,
-        unfocusedTextColor = TextPrimary,
-        focusedLabelColor = NeonCyan,
-        unfocusedLabelColor = TextMuted
+        focusedBorderColor = ArenaPurple,
+        unfocusedBorderColor = Color(0xFFCBD5E1),
+        focusedTextColor = CardDarkText,
+        unfocusedTextColor = CardDarkText,
+        focusedLabelColor = ArenaPurple,
+        unfocusedLabelColor = CardMutedText
     )
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(ObsidianBg, Color(0xFF0C1225), ObsidianBg)))
+            .background(ArenaCharcoal)
             .statusBarsPadding()
             .navigationBarsPadding(),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Dark Navy Header Band matching Home Page
+        Surface(
+            color = HeaderNavy,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                ArenaBrandEmblem(size = 80.dp)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "AHXAN ARENA",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    text = "BGMI • Free Fire MAX • COD Mobile • Valorant",
+                    color = TextSecondary,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
         Column(
             modifier = Modifier
                 .widthIn(max = 520.dp)
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            ArenaBrandEmblem(size = 86.dp)
-            Spacer(Modifier.height(12.dp))
-            StatusPill(label = "ESPORTS TOURNAMENT COMMAND", color = NeonCyan)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "AHXAN ARENA",
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.ExtraBold,
-                color = TextPrimary
-            )
-            Text(
-                text = "BGMI • Free Fire MAX • COD Mobile • Valorant",
-                style = MaterialTheme.typography.labelSmall,
-                color = TextSecondary
-            )
-
-            Spacer(Modifier.height(18.dp))
-
-            // 3-Mode Auth Switcher: Login | Register | Admin
+            // Mode Switcher matching Home accents
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(ObsidianElevated)
-                    .border(1.dp, Color(0x28FFFFFF), RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(HeaderNavy)
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -205,11 +206,11 @@ fun AuthScreen(
                     Triple(2, "Admin", "auth_tab_admin")
                 ).forEach { (idx, title, tag) ->
                     val selected = selectedTab == idx
-                    val activeColor = if (idx == 2) AmberWarning else NeonCyan
+                    val activeColor = if (idx == 2) CoinYellow else ArenaOrange
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(9.dp))
                             .background(if (selected) activeColor else Color.Transparent)
                             .clickable {
                                 selectedTab = idx
@@ -221,9 +222,11 @@ fun AuthScreen(
                     ) {
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.labelLarge,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (selected) ObsidianBg else TextSecondary
+                            color = if (selected) {
+                                if (idx == 2) Color(0xFF111827) else Color.White
+                            } else TextSecondary
                         )
                     }
                 }
@@ -231,241 +234,246 @@ fun AuthScreen(
 
             Spacer(Modifier.height(14.dp))
 
-            CyberGlassCard(glowColor = if (selectedTab == 2) AmberWarning else NeonCyan) {
-                when (selectedTab) {
-                    0 -> {
-                        // PLAYER LOGIN
-                        Text("Player Login", style = MaterialTheme.typography.headlineSmall, color = TextPrimary)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Enter your registered email address to sign into your tournament lobby & wallet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                        Spacer(Modifier.height(14.dp))
-
-                        OutlinedTextField(
-                            value = loginEmail,
-                            onValueChange = { loginEmail = it },
-                            label = { Text("Email Address *") },
-                            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = NeonCyan) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            colors = fieldColors,
-                            modifier = Modifier.fillMaxWidth().testTag("login_identifier_input")
-                        )
-
-                        if (errorMsg != null) {
-                            Spacer(Modifier.height(10.dp))
-                            Text(errorMsg!!, color = CrimsonDanger, style = MaterialTheme.typography.bodyMedium)
-                        }
-
-                        Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                if (!loginEmail.contains("@") || !loginEmail.contains(".")) {
-                                    errorMsg = "Please enter a valid email address."
-                                } else {
-                                    launchCredentialSignIn("player")
-                                }
-                            },
-                            enabled = !isLoading,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = ObsidianBg),
-                            modifier = Modifier.fillMaxWidth().height(52.dp).testTag("player_login_button")
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(Modifier.size(22.dp), color = ObsidianBg, strokeWidth = 2.dp)
-                            } else {
-                                Text("Continue Player Login", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Spacer(Modifier.height(10.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("New player?", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
-                            TextButton(onClick = { selectedTab = 1; errorMsg = null }) {
-                                Text("Create Account", color = NeonCyan, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-
-                    1 -> {
-                        // PLAYER REGISTER (No OTP — Clean Email + Player Details + Optional Promo)
-                        Text("Player Registration", style = MaterialTheme.typography.headlineSmall, color = TextPrimary)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Enter your player profile details, email, and an optional promo or referral code.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                        Spacer(Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = regUsername,
-                            onValueChange = { regUsername = it },
-                            label = { Text("Username *") },
-                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = NeonCyan) },
-                            singleLine = true,
-                            colors = fieldColors,
-                            modifier = Modifier.fillMaxWidth().testTag("reg_username_input")
-                        )
-                        Spacer(Modifier.height(8.dp))
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = regGameName,
-                                onValueChange = { regGameName = it },
-                                label = { Text("Game Name *") },
-                                leadingIcon = { Icon(Icons.Default.SportsEsports, contentDescription = null, tint = ElectricViolet) },
-                                singleLine = true,
-                                colors = fieldColors,
-                                modifier = Modifier.weight(1f).testTag("reg_game_name_input")
-                            )
-                            OutlinedTextField(
-                                value = regGameUid,
-                                onValueChange = { regGameUid = it },
-                                label = { Text("Game UID *") },
-                                leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null, tint = EmeraldProfit) },
-                                singleLine = true,
-                                colors = fieldColors,
-                                modifier = Modifier.weight(1f).testTag("reg_game_uid_input")
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = regPhone,
-                            onValueChange = { regPhone = it.filter { ch -> ch.isDigit() || ch == '+' || ch == ' ' }.take(16) },
-                            label = { Text("Phone Number *") },
-                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = NeonCyan) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                            colors = fieldColors,
-                            modifier = Modifier.fillMaxWidth().testTag("reg_phone_input")
-                        )
-                        Spacer(Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = regEmail,
-                            onValueChange = { regEmail = it },
-                            label = { Text("Email Address *") },
-                            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = NeonCyan) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            colors = fieldColors,
-                            modifier = Modifier.fillMaxWidth().testTag("reg_email_input")
-                        )
-                        Spacer(Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = regPromoCode,
-                            onValueChange = { regPromoCode = it.uppercase() },
-                            label = { Text("Promo / Referral Code (Optional)") },
-                            leadingIcon = { Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = AmberWarning) },
-                            singleLine = true,
-                            colors = fieldColors,
-                            modifier = Modifier.fillMaxWidth().testTag("reg_promo_input")
-                        )
-
-                        if (errorMsg != null) {
-                            Spacer(Modifier.height(10.dp))
-                            Text(errorMsg!!, color = CrimsonDanger, style = MaterialTheme.typography.bodyMedium)
-                        }
-
-                        Spacer(Modifier.height(16.dp))
-
-                        Button(
-                            onClick = {
-                                errorMsg = null
-                                val digits = regPhone.filter { it.isDigit() }
-                                when {
-                                    regUsername.trim().length < 2 -> errorMsg = "Enter a valid Username (min 2 chars)."
-                                    regGameName.trim().isBlank() -> errorMsg = "Game Name (IGN) is required."
-                                    regGameUid.trim().length < 3 -> errorMsg = "Enter a valid Game UID."
-                                    digits.length < 7 -> errorMsg = "Enter a valid Phone Number."
-                                    !regEmail.contains("@") || !regEmail.contains(".") -> errorMsg = "Enter a valid Email address."
-                                    else -> launchCredentialSignIn("player")
-                                }
-                            },
-                            enabled = !isLoading,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan, contentColor = ObsidianBg),
-                            modifier = Modifier.fillMaxWidth().height(52.dp).testTag("reg_submit_button")
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(Modifier.size(22.dp), color = ObsidianBg, strokeWidth = 2.dp)
-                            } else {
-                                Text("Create Account & Continue", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-
-                    2 -> {
-                        // ADMIN ONLY — GOOGLE LOGIN
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(26.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Admin Login (Google Only)", style = MaterialTheme.typography.headlineSmall, color = AmberWarning)
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Google Sign-In is exclusively dedicated to Super Admin & authorized RBAC Staff to access the 12-Module Command Center.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Surface(
-                            color = AmberWarning.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, AmberWarning.copy(alpha = 0.45f)),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+            // Clean White Card matching Home/Wallet cards
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                shadowElevation = 4.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(18.dp)) {
+                    when (selectedTab) {
+                        0 -> {
+                            Text("Player Login", color = CardDarkText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Players: please use the Login or Register tabs above.",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = AmberWarning,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(10.dp)
+                                "Enter your registered email address to sign into your tournament lobby & wallet.",
+                                color = CardMutedText,
+                                fontSize = 13.sp
                             )
+                            Spacer(Modifier.height(14.dp))
+
+                            OutlinedTextField(
+                                value = loginEmail,
+                                onValueChange = { loginEmail = it },
+                                label = { Text("Email Address *") },
+                                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = ArenaOrange) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                colors = fieldColors,
+                                modifier = Modifier.fillMaxWidth().testTag("login_identifier_input")
+                            )
+
+                            if (errorMsg != null) {
+                                Spacer(Modifier.height(10.dp))
+                                Text(errorMsg!!, color = CrimsonDanger, fontSize = 13.sp)
+                            }
+
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = {
+                                    if (!loginEmail.contains("@") || !loginEmail.contains(".")) {
+                                        errorMsg = "Please enter a valid email address."
+                                    } else {
+                                        launchCredentialSignIn("player")
+                                    }
+                                },
+                                enabled = !isLoading,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ArenaPurple, contentColor = Color.White),
+                                modifier = Modifier.fillMaxWidth().height(50.dp).testTag("player_login_button")
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                } else {
+                                    Text("CONTINUE PLAYER LOGIN", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
+                            }
+
+                            Spacer(Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("New player?", color = CardMutedText, fontSize = 13.sp)
+                                TextButton(onClick = { selectedTab = 1; errorMsg = null }) {
+                                    Text("Create Account", color = ArenaOrange, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
 
-                        if (errorMsg != null) {
-                            Spacer(Modifier.height(10.dp))
-                            Text(errorMsg!!, color = CrimsonDanger, style = MaterialTheme.typography.bodyMedium)
+                        1 -> {
+                            Text("Player Registration", color = CardDarkText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Enter your player details, email, and optional promo code.",
+                                color = CardMutedText,
+                                fontSize = 13.sp
+                            )
+                            Spacer(Modifier.height(12.dp))
+
+                            OutlinedTextField(
+                                value = regUsername,
+                                onValueChange = { regUsername = it },
+                                label = { Text("Username *") },
+                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = ArenaOrange) },
+                                singleLine = true,
+                                colors = fieldColors,
+                                modifier = Modifier.fillMaxWidth().testTag("reg_username_input")
+                            )
+                            Spacer(Modifier.height(8.dp))
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = regGameName,
+                                    onValueChange = { regGameName = it },
+                                    label = { Text("Game Name *") },
+                                    leadingIcon = { Icon(Icons.Default.SportsEsports, contentDescription = null, tint = ArenaPurple) },
+                                    singleLine = true,
+                                    colors = fieldColors,
+                                    modifier = Modifier.weight(1f).testTag("reg_game_name_input")
+                                )
+                                OutlinedTextField(
+                                    value = regGameUid,
+                                    onValueChange = { regGameUid = it },
+                                    label = { Text("Game UID *") },
+                                    leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null, tint = ArenaGreen) },
+                                    singleLine = true,
+                                    colors = fieldColors,
+                                    modifier = Modifier.weight(1f).testTag("reg_game_uid_input")
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+
+                            OutlinedTextField(
+                                value = regPhone,
+                                onValueChange = { regPhone = it.filter { ch -> ch.isDigit() || ch == '+' || ch == ' ' }.take(16) },
+                                label = { Text("Phone Number *") },
+                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = ArenaOrange) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                colors = fieldColors,
+                                modifier = Modifier.fillMaxWidth().testTag("reg_phone_input")
+                            )
+                            Spacer(Modifier.height(8.dp))
+
+                            OutlinedTextField(
+                                value = regEmail,
+                                onValueChange = { regEmail = it },
+                                label = { Text("Email Address *") },
+                                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = ArenaPurple) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                colors = fieldColors,
+                                modifier = Modifier.fillMaxWidth().testTag("reg_email_input")
+                            )
+                            Spacer(Modifier.height(8.dp))
+
+                            OutlinedTextField(
+                                value = regPromoCode,
+                                onValueChange = { regPromoCode = it.uppercase() },
+                                label = { Text("Promo / Referral Code (Optional)") },
+                                leadingIcon = { Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = ArenaOrange) },
+                                singleLine = true,
+                                colors = fieldColors,
+                                modifier = Modifier.fillMaxWidth().testTag("reg_promo_input")
+                            )
+
+                            if (errorMsg != null) {
+                                Spacer(Modifier.height(10.dp))
+                                Text(errorMsg!!, color = CrimsonDanger, fontSize = 13.sp)
+                            }
+
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = {
+                                    errorMsg = null
+                                    val digits = regPhone.filter { it.isDigit() }
+                                    when {
+                                        regUsername.trim().length < 2 -> errorMsg = "Enter a valid Username (min 2 chars)."
+                                        regGameName.trim().isBlank() -> errorMsg = "Game Name (IGN) is required."
+                                        regGameUid.trim().length < 3 -> errorMsg = "Enter a valid Game UID."
+                                        digits.length < 7 -> errorMsg = "Enter a valid Phone Number."
+                                        !regEmail.contains("@") || !regEmail.contains(".") -> errorMsg = "Enter a valid Email address."
+                                        else -> launchCredentialSignIn("player")
+                                    }
+                                },
+                                enabled = !isLoading,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ArenaPurple, contentColor = Color.White),
+                                modifier = Modifier.fillMaxWidth().height(50.dp).testTag("reg_submit_button")
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                } else {
+                                    Text("CREATE ACCOUNT & CONTINUE", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
+                            }
                         }
 
-                        Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = { launchCredentialSignIn("admin") },
-                            enabled = !isLoading,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AmberWarning, contentColor = ObsidianBg),
-                            modifier = Modifier.fillMaxWidth().height(54.dp).testTag("admin_google_sign_in_button")
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(Modifier.size(22.dp), color = ObsidianBg, strokeWidth = 2.dp)
-                            } else {
-                                Icon(Icons.Default.AdminPanelSettings, contentDescription = null, modifier = Modifier.size(20.dp))
+                        2 -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = ArenaOrange, modifier = Modifier.size(26.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Admin Sign in with Google", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("Admin Login (Google Only)", color = CardDarkText, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Google Sign-In is exclusively dedicated to Super Admin & authorized RBAC Staff.",
+                                color = CardMutedText,
+                                fontSize = 13.sp
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Surface(
+                                color = CoinYellow.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.45f)),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Players: please use Login or Register above.",
+                                    color = Color(0xFF92400E),
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+
+                            if (errorMsg != null) {
+                                Spacer(Modifier.height(10.dp))
+                                Text(errorMsg!!, color = CrimsonDanger, fontSize = 13.sp)
+                            }
+
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = { launchCredentialSignIn("admin") },
+                                enabled = !isLoading,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ArenaOrange, contentColor = Color.White),
+                                modifier = Modifier.fillMaxWidth().height(52.dp).testTag("admin_google_sign_in_button")
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("ADMIN SIGN IN WITH GOOGLE", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
                             }
                         }
                     }
-                }
 
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = "Protected by Zero-Trust Firebase Security & Google Identity",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextMuted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "Secured by Firebase Authentication & Google Identity",
+                        fontSize = 11.sp,
+                        color = CardMutedText,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
     }

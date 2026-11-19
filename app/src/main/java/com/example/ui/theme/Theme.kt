@@ -5,35 +5,36 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-private val AhxanDarkColorScheme = darkColorScheme(
-    primary = NeonCyan,
-    onPrimary = ObsidianBg,
-    primaryContainer = ElectricViolet,
-    onPrimaryContainer = TextPrimary,
-    secondary = NeonViolet,
-    onSecondary = ObsidianBg,
-    secondaryContainer = ObsidianElevated,
+private val AhxanHomeColorScheme = darkColorScheme(
+    primary = ArenaOrange,
+    onPrimary = Color.White,
+    primaryContainer = ArenaPurple,
+    onPrimaryContainer = Color.White,
+    secondary = ArenaBlue,
+    onSecondary = Color.White,
+    secondaryContainer = HeaderNavy,
     onSecondaryContainer = TextPrimary,
-    tertiary = EmeraldProfit,
-    onTertiary = ObsidianBg,
-    background = ObsidianBg,
+    tertiary = ArenaGreen,
+    onTertiary = Color.White,
+    background = ArenaCharcoal,
     onBackground = TextPrimary,
-    surface = ObsidianSurface,
+    surface = HeaderNavy,
     onSurface = TextPrimary,
-    surfaceVariant = ObsidianElevated,
+    surfaceVariant = BottomNavBg,
     onSurfaceVariant = TextSecondary,
-    outline = BorderGlow,
+    outline = Color(0xFF475569),
     outlineVariant = BorderSubtle,
     error = CrimsonDanger,
-    onError = TextPrimary
+    onError = Color.White
 )
 
 val ArenaShapes = Shapes(
     small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(22.dp)
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(20.dp)
 )
 
 @Composable
@@ -41,7 +42,7 @@ fun AhxanArenaTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = AhxanDarkColorScheme,
+        colorScheme = AhxanHomeColorScheme,
         typography = ArenaTypography,
         shapes = ArenaShapes,
         content = content
