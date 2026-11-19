@@ -448,8 +448,8 @@ service cloud.firestore {
       }
 
       match /slots/{slotUserId} {
-        allow get: if isValidId(slotUserId) && isSignedIn() && (isOwner(slotUserId) || isAdmin());
-        allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+        allow get: if isValidId(slotUserId) && isSignedIn();
+        allow list: if isSignedIn();
         allow create: if isValidId(slotUserId) && isSignedIn() && isValidSlot(incoming()) && (isOwner(slotUserId) || isAdmin());
         allow update: if isValidId(slotUserId) && isAdmin() && isValidSlot(incoming());
         allow delete: if isValidId(slotUserId) && isAdmin();

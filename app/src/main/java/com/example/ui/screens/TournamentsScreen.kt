@@ -1,12 +1,16 @@
 package com.example.ui.screens
 
 import android.widget.Toast
-import androidx.compose.foundation.Image
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,28 +22,38 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,39 +67,38 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.asImageBitmap
-import coil.compose.AsyncImage
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Coupon
 import com.example.data.model.GeneralConfig
 import com.example.data.model.MatchSlot
 import com.example.data.model.RoomSecret
 import com.example.data.model.Tournament
 import com.example.data.model.UserProfile
-import com.example.ui.components.CyberGlassCard
+import com.example.ui.components.CoinBadge
 import com.example.ui.components.MatchBannerImage
-import com.example.ui.components.NeonPrimaryButton
-import com.example.ui.components.SlotsProgressBar
 import com.example.ui.components.StatusPill
-import com.example.ui.components.bannerDrawableForKey
+import com.example.ui.components.SubScreenTopBar
 import com.example.ui.theme.AmberWarning
+import com.example.ui.theme.ArenaBlue
+import com.example.ui.theme.ArenaGreen
+import com.example.ui.theme.ArenaOrange
+import com.example.ui.theme.ArenaPurple
+import com.example.ui.theme.CardDarkText
+import com.example.ui.theme.CardMutedText
 import com.example.ui.theme.CrimsonDanger
-import com.example.ui.theme.ElectricViolet
 import com.example.ui.theme.EmeraldProfit
+import com.example.ui.theme.HeaderNavy
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.ObsidianBg
-import com.example.ui.theme.ObsidianElevated
-import com.example.ui.theme.ObsidianSurface
-import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.utils.ArenaFormatters
-import com.example.utils.QrCodeUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -94,15 +107,20 @@ fun TournamentsScreen(
     tournaments: List<Tournament>,
     joinedMatches: List<MatchSlot>,
     generalConfig: GeneralConfig = GeneralConfig(),
+    initialGameFilter: String = "All",
+    initialStatusTab: Int = 1,
+    onOpenMyMatches: () -> Unit = {},
     onSelectTournament: (Tournament) -> Unit
 ) {
-    val tabs = listOf("Upcoming", "Live", "Completed")
-    var selectedTab by remember { mutableStateOf(0) }
-    var selectedGame by remember { mutableStateOf("All") }
+    // Tabs matching screenshot: ONGOING | UPCOMING | RESULTS
+    val tabs = listOf("ONGOING", "UPCOMING", "RESULTS")
+    val statusKeys = listOf("live", "upcoming", "completed")
+    var selectedTab by remember(initialStatusTab) { mutableStateOf(initialStatusTab.coerceIn(0, 2)) }
+    var selectedGame by remember(initialGameFilter) { mutableStateOf(initialGameFilter) }
     var selectedMode by remember { mutableStateOf("All") }
     var selectedEntry by remember { mutableStateOf("All") }
 
-    val statusKey = tabs[selectedTab].lowercase()
+    val statusKey = statusKeys[selectedTab]
     val filtered = remember(tournaments, statusKey, selectedGame, selectedMode, selectedEntry) {
         tournaments.filter { m ->
             m.status == statusKey &&
@@ -112,189 +130,227 @@ fun TournamentsScreen(
         }
     }
 
-    val heroBitmap = remember(generalConfig.matchesHeroBannerUrl) {
-        val raw = generalConfig.matchesHeroBannerUrl.trim()
-        if (raw.isNotEmpty() && !raw.startsWith("http", ignoreCase = true)) {
-            QrCodeUtils.decodeBase64Image(raw)
-        } else null
-    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ArenaPurple)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            SubScreenTopBar(
+                title = if (selectedGame == "All") "ESPORTS TOURNAMENTS" else selectedGame.uppercase(),
+                containerColor = HeaderNavy,
+                onBack = if (selectedGame != "All") { { selectedGame = "All" } } else null
+            )
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "TOURNAMENTS",
-            style = MaterialTheme.typography.headlineMedium,
-            color = NeonCyan,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-        )
-
-        // Admin-controlled Matches Hero Banner Image above all matches
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 10.dp)
-                .height(145.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .border(1.dp, NeonCyan.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
-                .testTag("matches_admin_hero_banner")
-        ) {
-            val rawHero = generalConfig.matchesHeroBannerUrl.trim()
-            when {
-                rawHero.startsWith("http", ignoreCase = true) -> {
-                    AsyncImage(
-                        model = rawHero,
-                        contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Tournament Banner" },
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                heroBitmap != null -> {
-                    Image(
-                        bitmap = heroBitmap.asImageBitmap(),
-                        contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Tournament Banner" },
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                else -> {
-                    Image(
-                        painter = painterResource(id = bannerDrawableForKey(generalConfig.matchesHeroBannerKey)),
-                        contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Tournament Banner" },
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
+            // Admin-controlled Matches Hero Banner above matches
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.88f))))
-            )
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(14.dp)
+                    .fillMaxWidth()
+                    .background(HeaderNavy)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                StatusPill(label = "FEATURED ARENA", color = NeonCyan)
-                if (generalConfig.matchesHeroTitle.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = generalConfig.matchesHeroTitle,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, ArenaOrange.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                        .testTag("matches_admin_hero_banner")
+                ) {
+                    MatchBannerImage(
+                        bannerUrl = generalConfig.matchesHeroBannerUrl,
+                        bannerKey = generalConfig.matchesHeroBannerKey,
+                        contentDescription = generalConfig.matchesHeroTitle.ifBlank { "Featured Arena Banner" },
+                        modifier = Modifier.fillMaxSize()
                     )
-                }
-                if (generalConfig.matchesHeroSubtitle.isNotBlank()) {
-                    Text(
-                        text = generalConfig.matchesHeroSubtitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.85f))))
                     )
-                }
-            }
-        }
-
-        TabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = ObsidianSurface,
-            contentColor = NeonCyan
-        ) {
-            tabs.forEachIndexed { idx, title ->
-                Tab(
-                    selected = selectedTab == idx,
-                    onClick = { selectedTab = idx },
-                    text = { Text(title, style = MaterialTheme.typography.labelLarge) }
-                )
-            }
-        }
-
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(listOf("All", "BGMI", "Free Fire MAX", "COD Mobile", "Valorant")) { g ->
-                FilterChip(
-                    selected = selectedGame == g,
-                    onClick = { selectedGame = g },
-                    label = { Text(g) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = NeonCyan,
-                        selectedLabelColor = ObsidianBg,
-                        containerColor = ObsidianElevated
-                    )
-                )
-            }
-            items(listOf("Solo", "Duo", "Squad")) { mode ->
-                FilterChip(
-                    selected = selectedMode == mode,
-                    onClick = { selectedMode = if (selectedMode == mode) "All" else mode },
-                    label = { Text(mode) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = ElectricViolet,
-                        selectedLabelColor = TextPrimary,
-                        containerColor = ObsidianElevated
-                    )
-                )
-            }
-            items(listOf("Free", "Paid")) { entry ->
-                FilterChip(
-                    selected = selectedEntry == entry,
-                    onClick = { selectedEntry = if (selectedEntry == entry) "All" else entry },
-                    label = { Text(entry) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = EmeraldProfit,
-                        selectedLabelColor = ObsidianBg,
-                        containerColor = ObsidianElevated
-                    )
-                )
-            }
-        }
-
-        if (filtered.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                CyberGlassCard {
-                    Text("No $statusKey matches found", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
-                    Spacer(Modifier.height(6.dp))
-                    Text("Try clearing filters or check another status tab.", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
-                }
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(filtered, key = { it.id }) { match ->
-                    val alreadyJoined = joinedMatches.any { it.matchId == match.id && it.status != "kicked" && it.status != "refunded" }
-                    Column {
-                        TournamentLobbyCard(match = match, onClick = { onSelectTournament(match) })
-                        if (alreadyJoined) {
-                            Spacer(Modifier.height(4.dp))
-                            StatusPill(label = "JOINED • TAP FOR ROOM DETAILS", color = EmeraldProfit)
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(12.dp)
+                    ) {
+                        StatusPill(label = "FEATURED ARENA", color = ArenaOrange)
+                        if (generalConfig.matchesHeroTitle.isNotBlank()) {
+                            Spacer(Modifier.height(3.dp))
+                            Text(generalConfig.matchesHeroTitle, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                        if (generalConfig.matchesHeroSubtitle.isNotBlank()) {
+                            Text(generalConfig.matchesHeroSubtitle, color = Color(0xFFE2E8F0), fontSize = 11.sp)
                         }
                     }
                 }
             }
+
+            // Purple TabRow: ONGOING | UPCOMING | RESULTS
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = ArenaPurple,
+                contentColor = Color.White,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                        height = 3.dp,
+                        color = Color.White
+                    )
+                }
+            ) {
+                tabs.forEachIndexed { idx, title ->
+                    Tab(
+                        selected = selectedTab == idx,
+                        onClick = { selectedTab = idx },
+                        text = {
+                            Text(
+                                text = title,
+                                fontWeight = if (selectedTab == idx) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == idx) Color.White else Color.White.copy(alpha = 0.72f),
+                                fontSize = 13.sp
+                            )
+                        }
+                    )
+                }
+            }
+
+            // Quick Filter Chips Row
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(listOf("All", "BGMI", "Free Fire MAX", "COD Mobile", "Valorant")) { g ->
+                    FilterChip(
+                        selected = selectedGame == g,
+                        onClick = { selectedGame = g },
+                        label = { Text(g, fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color.White,
+                            selectedLabelColor = ArenaPurple,
+                            containerColor = Color.White.copy(alpha = 0.16f),
+                            labelColor = Color.White
+                        ),
+                        border = null
+                    )
+                }
+                items(listOf("Solo", "Duo", "Squad")) { mode ->
+                    FilterChip(
+                        selected = selectedMode == mode,
+                        onClick = { selectedMode = if (selectedMode == mode) "All" else mode },
+                        label = { Text(mode, fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ArenaOrange,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.White.copy(alpha = 0.16f),
+                            labelColor = Color.White
+                        ),
+                        border = null
+                    )
+                }
+                items(listOf("Free", "Paid")) { entry ->
+                    FilterChip(
+                        selected = selectedEntry == entry,
+                        onClick = { selectedEntry = if (selectedEntry == entry) "All" else entry },
+                        label = { Text(entry, fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ArenaGreen,
+                            selectedLabelColor = Color.White,
+                            containerColor = Color.White.copy(alpha = 0.16f),
+                            labelColor = Color.White
+                        ),
+                        border = null
+                    )
+                }
+            }
+
+            if (filtered.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "No ${tabs[selectedTab].lowercase()} matches found",
+                                color = CardDarkText,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "Try switching game filters or checking the Upcoming tab.",
+                                color = CardMutedText,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 84.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items(filtered, key = { it.id }) { match ->
+                        val alreadyJoined = joinedMatches.any {
+                            it.matchId == match.id && it.status != "kicked" && it.status != "refunded"
+                        }
+                        TournamentLobbyCard(
+                            match = match,
+                            isJoined = alreadyJoined,
+                            onClick = { onSelectTournament(match) }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Purple Trophy FAB bottom-right matching screenshot
+        FloatingActionButton(
+            onClick = onOpenMyMatches,
+            containerColor = HeaderNavy,
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+        ) {
+            Icon(Icons.Default.EmojiEvents, contentDescription = "My Matches & Leaderboard")
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TournamentDetailSheet(
     match: Tournament,
     user: UserProfile?,
     joinedSlot: MatchSlot?,
     roomSecret: RoomSecret?,
+    participants: List<MatchSlot> = emptyList(),
     busy: Boolean,
     onLoadRoomSecret: (String) -> Unit,
+    onLoadParticipants: (String) -> Unit = {},
+    onOpenMyMatches: () -> Unit = {},
     onValidateCoupon: suspend (String, Double) -> Result<Coupon>,
-    onJoinMatch: (Tournament, String, String, List<String>, String, () -> Unit) -> Unit,
+    onJoinMatch: (Tournament, String, String, List<String>, String, Long?, () -> Unit) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var showJoinForm by remember { mutableStateOf(false) }
+    // Step: "detail", "slot_picker", or "confirm_dialog"
+    var currentStep by remember(match.id) { mutableStateOf("detail") }
+    var selectedSlotNum by remember(match.id) { mutableStateOf<Long?>(null) }
+    var participantsLoaded by remember(match.id) { mutableStateOf(false) }
+
     var ign by remember(user) { mutableStateOf(user?.inGameName.orEmpty().ifBlank { user?.displayName.orEmpty() }) }
     var gameUid by remember(user) { mutableStateOf(user?.gameUid.orEmpty()) }
     var teammate2 by remember { mutableStateOf("") }
@@ -326,291 +382,568 @@ fun TournamentDetailSheet(
     val discount = appliedCoupon?.computeBenefit(match.entryFee) ?: 0.0
     val finalFee = (match.entryFee - discount).coerceAtLeast(0.0)
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = ObsidianSurface
+    Dialog(
+        onDismissRequest = {
+            if (currentStep == "slot_picker") currentStep = "detail" else onDismiss()
+        },
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            Box(
+        BackHandler {
+            when (currentStep) {
+                "confirm_dialog" -> currentStep = "slot_picker"
+                "slot_picker" -> currentStep = "detail"
+                else -> onDismiss()
+            }
+        }
+
+        if (currentStep == "slot_picker" || currentStep == "confirm_dialog") {
+            // Choose Your Match Slot Screen (matching Screenshot 155619)
+            val takenSlots = remember(participants, match.filledSlots) {
+                if (participants.isNotEmpty()) {
+                    participants.map { it.slotNumber }.toSet()
+                } else {
+                    (1L..match.filledSlots).toSet()
+                }
+            }
+            val totalSlots = match.maxSlots.coerceIn(2L, 120L).toInt()
+            val slotNumbers = remember(totalSlots) { (1..totalSlots).map { it.toLong() } }
+
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .fillMaxSize()
+                    .background(Color.White)
             ) {
-                MatchBannerImage(
-                    bannerUrl = match.bannerUrl,
-                    bannerKey = match.bannerKey,
-                    contentDescription = match.title,
-                    modifier = Modifier.fillMaxSize()
+                SubScreenTopBar(
+                    title = "Choose your match slot",
+                    containerColor = ArenaPurple,
+                    onBack = { currentStep = "detail" }
                 )
+
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(4),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth()
+                ) {
+                    items(slotNumbers, key = { it }) { slotNum ->
+                        val isTaken = slotNum in takenSlots
+                        val isSelected = selectedSlotNum == slotNum
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(enabled = !isTaken) {
+                                    selectedSlotNum = slotNum
+                                }
+                                .padding(vertical = 6.dp)
+                                .testTag("slot_picker_item_$slotNum")
+                        ) {
+                            Text(
+                                text = "$slotNum",
+                                color = if (isTaken) CardMutedText else CardDarkText,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                modifier = Modifier.width(28.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(
+                                        when {
+                                            isTaken -> Color(0xFFBDBDBD)
+                                            isSelected -> ArenaPurple
+                                            else -> Color.White
+                                        }
+                                    )
+                                    .border(
+                                        width = 1.6.dp,
+                                        color = when {
+                                            isTaken -> Color(0xFFBDBDBD)
+                                            isSelected -> ArenaPurple
+                                            else -> CardDarkText
+                                        },
+                                        shape = RoundedCornerShape(4.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isTaken || isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.9f))))
-                )
-                Column(modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-                    StatusPill(label = "${match.game} • ${match.mode}", color = NeonCyan)
-                    Spacer(Modifier.height(4.dp))
-                    Text(match.title, style = MaterialTheme.typography.titleLarge, color = TextPrimary)
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Countdown + Slots
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Timer, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    val hrs = remainingMillis / 3600000L
-                    val mins = (remainingMillis % 3600000L) / 60000L
-                    val secs = (remainingMillis % 60000L) / 1000L
-                    Text(
-                        text = if (remainingMillis > 0L) "Starts in %02dh %02dm %02ds".format(hrs, mins, secs) else "Match Time Reached",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = AmberWarning
-                    )
-                }
-                Text("Map: ${match.mapName}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-            }
-
-            Spacer(Modifier.height(10.dp))
-            SlotsProgressBar(filled = match.filledSlots, max = match.maxSlots)
-            Spacer(Modifier.height(12.dp))
-
-            // Prize & Entry Breakdown
-            CyberGlassCard(glowColor = EmeraldProfit) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text("PRIZE POOL", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                        Text(ArenaFormatters.formatInr(match.prizePool), style = MaterialTheme.typography.titleLarge, color = EmeraldProfit)
-                    }
-                    Column {
-                        Text("PER KILL", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                        Text(ArenaFormatters.formatInr(match.perKillReward), style = MaterialTheme.typography.titleLarge, color = AmberWarning)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("ENTRY FEE", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 18.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (selectedSlotNum == null) {
+                                val firstFree = slotNumbers.firstOrNull { it !in takenSlots }
+                                selectedSlotNum = firstFree
+                            }
+                            currentStep = "confirm_dialog"
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ArenaBlue, contentColor = Color.White),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp).testTag("slot_picker_next_btn")
+                    ) {
                         Text(
-                            if (match.entryFee <= 0.0) "FREE" else ArenaFormatters.formatInr(match.entryFee),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = NeonCyan
+                            text = if (selectedSlotNum != null) "NEXT (SLOT #$selectedSlotNum)" else "NEXT",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
                         )
                     }
-                }
-                if (match.prizeBreakdown.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(match.prizeBreakdown, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
-
-            // Room ID & Password Section
-            if (joinedSlot != null) {
-                CyberGlassCard(glowColor = if (canRevealRoom && roomSecret != null) EmeraldProfit else AmberWarning) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (canRevealRoom && roomSecret != null) Icons.Default.LockOpen else Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = if (canRevealRoom && roomSecret != null) EmeraldProfit else AmberWarning
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("Room Credentials (Slot #${joinedSlot.slotNumber})", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    if (canRevealRoom && roomSecret != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            if (currentStep == "confirm_dialog") {
+                Dialog(onDismissRequest = { currentStep = "slot_picker" }) {
+                    Surface(
+                        color = HeaderNavy,
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp)
                         ) {
-                            Column {
-                                Text("ROOM ID: ${roomSecret.roomId}", style = MaterialTheme.typography.titleMedium, color = NeonCyan)
-                                Text("PASS: ${roomSecret.roomPassword}", style = MaterialTheme.typography.titleMedium, color = EmeraldProfit)
-                            }
-                            Row {
-                                IconButton(onClick = {
-                                    ArenaFormatters.copyToClipboard(context, "Room ID", roomSecret.roomId)
-                                    Toast.makeText(context, "Room ID copied", Toast.LENGTH_SHORT).show()
-                                }) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy Room ID", tint = NeonCyan)
-                                }
-                                IconButton(onClick = {
-                                    ArenaFormatters.copyToClipboard(context, "Room Pass", roomSecret.roomPassword)
-                                    Toast.makeText(context, "Password copied", Toast.LENGTH_SHORT).show()
-                                }) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy Password", tint = EmeraldProfit)
-                                }
-                            }
-                        }
-                    } else {
-                        Text(
-                            text = "Locked until 15 mins before match start or when Admin publishes Room ID.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextMuted
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Rules
-            if (match.rulesText.isNotBlank()) {
-                CyberGlassCard(glowColor = ElectricViolet) {
-                    Text("Match Rules", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                    Spacer(Modifier.height(4.dp))
-                    Text(match.rulesText, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Join Action / Slot Picker + Coupon Validator
-            if (joinedSlot == null && match.status == "upcoming" && match.filledSlots < match.maxSlots) {
-                if (!showJoinForm) {
-                    NeonPrimaryButton(
-                        text = "Join Match • ${if (match.entryFee <= 0.0) "FREE" else ArenaFormatters.formatInr(match.entryFee)}",
-                        onClick = { showJoinForm = true },
-                        modifier = Modifier.fillMaxWidth().testTag("open_join_match_form_btn")
-                    )
-                } else {
-                    CyberGlassCard(glowColor = NeonCyan) {
-                        Text("Slot Registration", style = MaterialTheme.typography.titleLarge, color = NeonCyan)
-                        Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(
-                            value = ign,
-                            onValueChange = {
-                                ign = it
-                                joinValidationError = null
-                            },
-                            label = { Text("In-Game Name (IGN) *") },
-                            singleLine = true,
-                            isError = joinValidationError != null && ign.isBlank(),
-                            modifier = Modifier.fillMaxWidth().testTag("join_ign_input")
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = gameUid,
-                            onValueChange = {
-                                gameUid = it
-                                joinValidationError = null
-                            },
-                            label = { Text("Game UID / Character ID *") },
-                            singleLine = true,
-                            isError = joinValidationError != null && gameUid.isBlank(),
-                            modifier = Modifier.fillMaxWidth().testTag("join_uid_input")
-                        )
-                        if (match.mode == "Duo" || match.mode == "Squad") {
-                            Spacer(Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = teammate2,
-                                onValueChange = { teammate2 = it },
-                                label = { Text("Teammate 2 IGN (Optional)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
+                            Text(
+                                text = "Slot #${selectedSlotNum ?: (match.filledSlots + 1)} Registration",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = NeonCyan
                             )
-                        }
-                        if (match.mode == "Squad") {
-                            Spacer(Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = teammate3,
-                                onValueChange = { teammate3 = it },
-                                label = { Text("Teammate 3 IGN (Optional)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = teammate4,
-                                onValueChange = { teammate4 = it },
-                                label = { Text("Teammate 4 IGN (Optional)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        if (match.entryFee > 0.0) {
                             Spacer(Modifier.height(10.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = ign,
+                                onValueChange = {
+                                    ign = it
+                                    joinValidationError = null
+                                },
+                                label = { Text("In-Game Name (IGN) *") },
+                                singleLine = true,
+                                isError = joinValidationError != null && ign.isBlank(),
+                                modifier = Modifier.fillMaxWidth().testTag("join_ign_input")
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = gameUid,
+                                onValueChange = {
+                                    gameUid = it
+                                    joinValidationError = null
+                                },
+                                label = { Text("Game UID / Character ID *") },
+                                singleLine = true,
+                                isError = joinValidationError != null && gameUid.isBlank(),
+                                modifier = Modifier.fillMaxWidth().testTag("join_uid_input")
+                            )
+                            if (match.mode == "Duo" || match.mode == "Squad") {
+                                Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(
-                                    value = couponCode,
-                                    onValueChange = { couponCode = it.uppercase() },
-                                    label = { Text("Match Coupon (e.g. FIRST50)") },
-                                    leadingIcon = { Icon(Icons.Default.LocalOffer, contentDescription = null, tint = NeonCyan) },
+                                    value = teammate2,
+                                    onValueChange = { teammate2 = it },
+                                    label = { Text("Teammate 2 IGN (Optional)") },
                                     singleLine = true,
-                                    modifier = Modifier.weight(1f).testTag("join_coupon_input")
+                                    modifier = Modifier.fillMaxWidth()
                                 )
+                            }
+                            if (match.mode == "Squad") {
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = teammate3,
+                                    onValueChange = { teammate3 = it },
+                                    label = { Text("Teammate 3 IGN (Optional)") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = teammate4,
+                                    onValueChange = { teammate4 = it },
+                                    label = { Text("Teammate 4 IGN (Optional)") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            if (match.entryFee > 0.0) {
+                                Spacer(Modifier.height(10.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = couponCode,
+                                        onValueChange = { couponCode = it.uppercase() },
+                                        label = { Text("Match Coupon (FIRST50)") },
+                                        leadingIcon = { Icon(Icons.Default.LocalOffer, contentDescription = null, tint = NeonCyan) },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f).testTag("join_coupon_input")
+                                    )
+                                    Button(
+                                        onClick = {
+                                            couponError = null
+                                            scope.launch {
+                                                val res = onValidateCoupon(couponCode, match.entryFee)
+                                                res.onSuccess { appliedCoupon = it }
+                                                    .onFailure {
+                                                        appliedCoupon = null
+                                                        couponError = it.localizedMessage
+                                                    }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = ArenaPurple)
+                                    ) { Text("Apply") }
+                                }
+                                if (appliedCoupon != null) {
+                                    Text(
+                                        text = "Applied ${appliedCoupon!!.code}: -${ArenaFormatters.formatInr(discount)} OFF!",
+                                        color = EmeraldProfit,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                } else if (couponError != null) {
+                                    Text(couponError!!, color = CrimsonDanger, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                                }
+                            }
+
+                            if (joinValidationError != null) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(joinValidationError!!, color = CrimsonDanger, style = MaterialTheme.typography.labelLarge)
+                            }
+
+                            Spacer(Modifier.height(14.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { currentStep = "slot_picker" },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Back", color = TextSecondary)
+                                }
                                 Button(
                                     onClick = {
-                                        couponError = null
-                                        scope.launch {
-                                            val res = onValidateCoupon(couponCode, match.entryFee)
-                                            res.onSuccess { appliedCoupon = it }
-                                                .onFailure {
-                                                    appliedCoupon = null
-                                                    couponError = it.localizedMessage
-                                                }
+                                        when {
+                                            ign.trim().isBlank() -> joinValidationError = "In-Game Name (IGN) is required."
+                                            gameUid.trim().length < 3 -> joinValidationError = "Valid Game UID is required."
+                                            else -> {
+                                                joinValidationError = null
+                                                onJoinMatch(
+                                                    match,
+                                                    ign.trim(),
+                                                    gameUid.trim(),
+                                                    listOf(teammate2, teammate3, teammate4).filter { it.isNotBlank() },
+                                                    appliedCoupon?.code ?: "",
+                                                    selectedSlotNum,
+                                                    onDismiss
+                                                )
+                                            }
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = ElectricViolet)
+                                    enabled = !busy,
+                                    colors = ButtonDefaults.buttonColors(containerColor = ArenaGreen, contentColor = Color.White),
+                                    modifier = Modifier.weight(1.4f).testTag("confirm_join_match_btn")
                                 ) {
-                                    Text("Apply")
+                                    Text(if (busy) "Joining..." else "Pay ${finalFee.toLong()} Coins", fontWeight = FontWeight.Bold)
                                 }
                             }
-                            if (appliedCoupon != null) {
+                        }
+                    }
+                }
+            }
+        } else {
+            // Match Detail View (matching Screenshots 155603, 155611, 155614)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                    ) {
+                        MatchBannerImage(
+                            bannerUrl = match.bannerUrl,
+                            bannerKey = match.bannerKey,
+                            contentDescription = match.title,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(10.dp)
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.45f))
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                    }
+
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        Text(
+                            text = match.title,
+                            color = ArenaBlue,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(10.dp))
+
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DetailInfoChip("Type: ${match.mode}")
+                            DetailInfoChip("Version: TPP")
+                            DetailInfoChip("Map: ${match.mapName}")
+                            DetailInfoChip("Match Type: ${match.entryType}")
+                            DetailCoinChip("Entry Fee:", if (match.entryFee <= 0.0) "FREE" else "${match.entryFee.toLong()}")
+                            DetailInfoChip("Match Schedule: ${ArenaFormatters.formatTimestampMillis(match.scheduledAtMillis)}")
+                        }
+
+                        Spacer(Modifier.height(18.dp))
+                        Text("Prize Details", color = ArenaBlue, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Surface(
+                            color = Color.White,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            shadowElevation = 1.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
-                                    text = "Applied ${appliedCoupon!!.code}: -${ArenaFormatters.formatInr(discount)} OFF!",
-                                    color = EmeraldProfit,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    modifier = Modifier.padding(top = 4.dp)
+                                    text = "PRIZE POOL: ${match.prizePool.toLong()} Coins • PER KILL: ${match.perKillReward.toLong()} Coins",
+                                    color = CardDarkText,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
                                 )
-                            } else if (couponError != null) {
-                                Text(couponError!!, color = Color(0xFFFF3B5C), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                                if (match.prizeBreakdown.isNotBlank()) {
+                                    Text(match.prizeBreakdown, color = CardDarkText, fontSize = 14.sp)
+                                }
                             }
                         }
 
-                        if (joinValidationError != null) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(joinValidationError!!, color = CrimsonDanger, style = MaterialTheme.typography.labelLarge)
-                        }
-
-                        Spacer(Modifier.height(14.dp))
-                        NeonPrimaryButton(
-                            text = if (busy) "Confirming Slot..." else "Confirm & Pay ${ArenaFormatters.formatInr(finalFee)}",
-                            enabled = !busy,
-                            onClick = {
-                                when {
-                                    ign.trim().isBlank() -> joinValidationError = "In-Game Name (IGN) is required to join."
-                                    gameUid.trim().length < 3 -> joinValidationError = "Valid Game UID is required to join."
-                                    else -> {
-                                        joinValidationError = null
-                                        onJoinMatch(
-                                            match,
-                                            ign.trim(),
-                                            gameUid.trim(),
-                                            listOf(teammate2, teammate3, teammate4).filter { it.isNotBlank() },
-                                            appliedCoupon?.code ?: "",
-                                            onDismiss
+                        if (joinedSlot != null) {
+                            Spacer(Modifier.height(16.dp))
+                            Surface(
+                                color = Color(0xFFF0FDF4),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, ArenaGreen.copy(alpha = 0.6f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = if (canRevealRoom && roomSecret != null) Icons.Default.LockOpen else Icons.Default.Lock,
+                                            contentDescription = null,
+                                            tint = if (canRevealRoom && roomSecret != null) ArenaGreen else AmberWarning
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = "Room Credentials (Slot #${joinedSlot.slotNumber})",
+                                            color = CardDarkText,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp
+                                        )
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    if (canRevealRoom && roomSecret != null) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text("ROOM ID: ${roomSecret.roomId}", color = ArenaBlue, fontWeight = FontWeight.Bold)
+                                                Text("PASS: ${roomSecret.roomPassword}", color = ArenaGreen, fontWeight = FontWeight.Bold)
+                                            }
+                                            Row {
+                                                IconButton(onClick = {
+                                                    ArenaFormatters.copyToClipboard(context, "Room ID", roomSecret.roomId)
+                                                    Toast.makeText(context, "Room ID copied", Toast.LENGTH_SHORT).show()
+                                                }) {
+                                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy Room ID", tint = ArenaBlue)
+                                                }
+                                                IconButton(onClick = {
+                                                    ArenaFormatters.copyToClipboard(context, "Room Pass", roomSecret.roomPassword)
+                                                    Toast.makeText(context, "Password copied", Toast.LENGTH_SHORT).show()
+                                                }) {
+                                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy Password", tint = ArenaGreen)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Text(
+                                            text = "Room ID & password will be shared here 15 minutes before match start or when Admin publishes.",
+                                            color = CardMutedText,
+                                            fontSize = 13.sp
                                         )
                                     }
                                 }
+                            }
+                        }
+
+                        Spacer(Modifier.height(18.dp))
+                        Text("About this Match", color = ArenaBlue, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = match.rulesText.ifBlank {
+                                "• Minimum Level 40+ ID required.\n• Teaming, emulators & third-party hacks are strictly banned.\n• Grab Room ID & Password 10 mins before start."
                             },
-                            modifier = Modifier.fillMaxWidth().testTag("confirm_join_match_btn")
+                            color = CardDarkText,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp
+                        )
+
+                        Spacer(Modifier.height(18.dp))
+                        Text("Participants", color = ArenaBlue, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            OutlinedButton(
+                                onClick = {
+                                    participantsLoaded = true
+                                    onLoadParticipants(match.id)
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFE5E7EB)),
+                                border = BorderStroke(1.dp, Color(0xFFD1D5DB)),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = ArenaBlue, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("LOAD PARTICIPANTS", color = ArenaBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
+                        if (participantsLoaded || participants.isNotEmpty()) {
+                            Spacer(Modifier.height(10.dp))
+                            if (participants.isEmpty()) {
+                                Text("No participants registered yet (${match.filledSlots}/${match.maxSlots}).", color = CardMutedText, fontSize = 13.sp)
+                            } else {
+                                participants.forEach { slot ->
+                                    Surface(
+                                        color = Color(0xFFF8FAFC),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("#${slot.slotNumber} • ${slot.inGameName}", color = CardDarkText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                            Text("UID: ${slot.gameUid}", color = CardMutedText, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(20.dp))
+                    }
+                }
+
+                // Sticky Bottom Split Action Bar (Green MY ENTRIES | Blue JOIN NOW)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .background(ArenaGreen)
+                            .clickable {
+                                onDismiss()
+                                onOpenMyMatches()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("MY ENTRIES", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                    val joinEnabled = joinedSlot == null && match.status == "upcoming" && match.filledSlots < match.maxSlots
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .background(if (joinEnabled) ArenaBlue else Color(0xFF64748B))
+                            .clickable(enabled = joinEnabled) {
+                                onLoadParticipants(match.id)
+                                currentStep = "slot_picker"
+                            }
+                            .testTag("open_join_match_form_btn"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = when {
+                                joinedSlot != null -> "SLOT #${joinedSlot.slotNumber} JOINED"
+                                match.filledSlots >= match.maxSlots -> "MATCH FULL"
+                                match.status != "upcoming" -> match.status.uppercase()
+                                else -> "JOIN NOW"
+                            },
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
                         )
                     }
                 }
             }
+        }
+    }
+}
 
-            Spacer(Modifier.height(28.dp))
+@Composable
+private fun DetailInfoChip(text: String) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(4.dp),
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        shadowElevation = 1.dp
+    ) {
+        Text(
+            text = text,
+            color = CardDarkText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
+    }
+}
+
+@Composable
+private fun DetailCoinChip(prefix: String, value: String) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(4.dp),
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        shadowElevation = 1.dp
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Text(text = prefix, color = CardDarkText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(5.dp))
+            CoinBadge(size = 16.dp)
+            Spacer(Modifier.width(4.dp))
+            Text(text = value, color = CardDarkText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

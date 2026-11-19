@@ -20,20 +20,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,27 +60,299 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.R
-import com.example.utils.QrCodeUtils
+import com.example.data.model.BroadcastNotification
+import com.example.data.model.UserNotification
 import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.BorderGlow
 import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.CardDarkText
+import com.example.ui.theme.CoinGold
+import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.CrimsonDanger
 import com.example.ui.theme.ElectricViolet
 import com.example.ui.theme.EmeraldProfit
+import com.example.ui.theme.HeaderNavy
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.ObsidianBg
 import com.example.ui.theme.ObsidianCardGlass
 import com.example.ui.theme.ObsidianElevated
+import com.example.ui.theme.ObsidianSurface
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
+import com.example.utils.QrCodeUtils
 
 fun bannerDrawableForKey(key: String): Int = when (key.lowercase()) {
     "freefire" -> R.drawable.img_banner_freefire
     "codm" -> R.drawable.img_banner_codm
     "hero" -> R.drawable.img_arena_hero
     else -> R.drawable.img_banner_bgmi
+}
+
+@Composable
+fun CoinBadge(
+    modifier: Modifier = Modifier,
+    size: Dp = 18.dp
+) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(
+                Brush.radialGradient(listOf(CoinYellow, CoinGold))
+            )
+            .border(1.2.dp, Color(0xFFD97706), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "C",
+            color = Color(0xFF78350F),
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = (size.value * 0.56f).sp,
+            lineHeight = (size.value * 0.6f).sp
+        )
+    }
+}
+
+@Composable
+fun ArenaTopHeader(
+    coinBalance: Double,
+    unreadCount: Int,
+    onOpenNotifications: () -> Unit,
+    onOpenWallet: () -> Unit
+) {
+    Surface(
+        color = HeaderNavy,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF0E131E))
+                    .border(1.5.dp, CoinGold, CircleShape)
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_arena_emblem),
+                    contentDescription = "Ahxan Arena",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+            ) {
+                Text(
+                    text = "Welcome Back,",
+                    color = Color(0xFFE2E8F0),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Ahxan Arena",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = onOpenNotifications,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .testTag("notification_bell_button")
+                ) {
+                    BadgedBox(
+                        badge = {
+                            Box(
+                                modifier = Modifier
+                                    .background(CoinYellow, RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = "$unreadCount",
+                                    color = CardDarkText,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Notifications",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier
+                        .clickable { onOpenWallet() }
+                        .testTag("home_wallet_pill")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        CoinBadge(size = 20.dp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = coinBalance.toLong().toString(),
+                            color = CardDarkText,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SubScreenTopBar(
+    title: String,
+    containerColor: Color = HeaderNavy,
+    onBack: (() -> Unit)? = null,
+    trailingContent: @Composable (() -> Unit)? = null
+) {
+    Surface(
+        color = containerColor,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 8.dp)
+        ) {
+            if (onBack != null) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.align(Alignment.CenterStart).size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White
+                    )
+                }
+            }
+            Text(
+                text = title,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center)
+            )
+            if (trailingContent != null) {
+                Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                    trailingContent()
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NotificationDrawerSheet(
+    notifications: List<UserNotification>,
+    broadcasts: List<BroadcastNotification>,
+    onMarkNotificationRead: (String) -> Unit,
+    onNavigate: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = ObsidianSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Text("Arena Alerts & Broadcasts", style = MaterialTheme.typography.headlineSmall, color = NeonCyan)
+            Spacer(Modifier.height(10.dp))
+            val mergedCount = notifications.size + broadcasts.size
+            if (mergedCount == 0) {
+                Text(
+                    "No alerts yet. Room IDs, prize wins, and broadcasts appear here.",
+                    color = TextMuted,
+                    modifier = Modifier.padding(vertical = 20.dp)
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.height(360.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(notifications, key = { "u_${it.id}" }) { n ->
+                        CyberGlassCard(
+                            glowColor = if (n.read) TextMuted else NeonCyan,
+                            onClick = {
+                                onMarkNotificationRead(n.id)
+                                onDismiss()
+                                onNavigate(n.route)
+                            }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(n.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary, modifier = Modifier.weight(1f))
+                                if (!n.read) StatusPill("NEW", NeonCyan)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(n.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                        }
+                    }
+                    items(broadcasts, key = { "b_${it.id}" }) { b ->
+                        CyberGlassCard(
+                            glowColor = ElectricViolet,
+                            onClick = {
+                                onDismiss()
+                                onNavigate(b.redirectRoute)
+                            }
+                        ) {
+                            StatusPill("BROADCAST", ElectricViolet)
+                            Spacer(Modifier.height(6.dp))
+                            Text(b.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                            Spacer(Modifier.height(4.dp))
+                            Text(b.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+    }
 }
 
 @Composable

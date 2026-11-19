@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -26,10 +27,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CurrencyRupee
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MilitaryTech
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SentimentSatisfied
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -49,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -85,6 +88,7 @@ import com.example.ui.components.NeonPrimaryButton
 import com.example.ui.components.StatusPill
 import com.example.ui.components.StatusToastBanner
 import com.example.ui.screens.AuthScreen
+import com.example.ui.screens.EditProfileScreen
 import com.example.ui.screens.HomeLobbyScreen
 import com.example.ui.screens.MyMatchesScreen
 import com.example.ui.screens.ProfileAndMoreScreen
@@ -97,12 +101,12 @@ import com.example.ui.screens.WalletScreen
 import com.example.ui.screens.admin.AdminCommandCenterScreen
 import com.example.ui.theme.AhxanArenaTheme
 import com.example.ui.theme.AmberWarning
+import com.example.ui.theme.BottomNavBg
 import com.example.ui.theme.CrimsonDanger
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.ObsidianBg
 import com.example.ui.theme.ObsidianElevated
 import com.example.ui.theme.ObsidianSurface
-import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.viewmodel.AdminViewModel
@@ -263,6 +267,7 @@ private fun AuthenticatedArenaApp(
     val statusBanner by arenaVm.statusBanner.collectAsStateWithLifecycle()
     val busy by arenaVm.busy.collectAsStateWithLifecycle()
     val roomSecretCache by arenaVm.roomSecretCache.collectAsStateWithLifecycle()
+    val participantsCache by arenaVm.participantsCache.collectAsStateWithLifecycle()
 
     val isSuperAdmin = email.equals("ahxantalib@gmail.com", ignoreCase = true) && emailVerified
     val isAdminAccess = isSuperAdmin || staffRole != null
@@ -272,17 +277,19 @@ private fun AuthenticatedArenaApp(
     val currentRoute = backStackEntry?.destination?.route ?: "home"
     var selectedTournament by remember { mutableStateOf<Tournament?>(null) }
     var showNotAdminDialog by remember { mutableStateOf(false) }
+    var selectedGameFilter by remember { mutableStateOf("All") }
+    var selectedStatusTab by remember { mutableIntStateOf(1) }
 
     val navigateTo: (String) -> Unit = remember(navController) {
         { route ->
             val target = route.lowercase().ifBlank { "home" }
-            if (target in listOf("home", "tournaments", "my_matches", "wallet", "profile")) {
+            if (target in listOf("home", "refer", "tournaments", "wallet", "profile")) {
                 navController.navigate(target) {
                     popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                     launchSingleTop = true
                     restoreState = true
                 }
-            } else if (target in listOf("refer", "support", "admin")) {
+            } else if (target in listOf("my_matches", "edit_profile", "support", "admin")) {
                 navController.navigate(target) { launchSingleTop = true }
             }
         }
@@ -330,13 +337,14 @@ private fun AuthenticatedArenaApp(
         return
     }
 
+    // 5-Tab Bottom Bar matching reference UI: Home | Refer (₹) | Matches | Wallet | Me
     val tabs = remember {
         listOf(
             BottomNavTab("home", "Home", Icons.Default.Home),
-            BottomNavTab("tournaments", "Scrims", Icons.Default.EmojiEvents),
-            BottomNavTab("my_matches", "Matches", Icons.Default.MilitaryTech),
+            BottomNavTab("refer", "Refer", Icons.Default.CurrencyRupee),
+            BottomNavTab("tournaments", "Matches", Icons.Default.EmojiEvents),
             BottomNavTab("wallet", "Wallet", Icons.Default.AccountBalanceWallet),
-            BottomNavTab("profile", "More", Icons.Default.Person)
+            BottomNavTab("profile", "Me", Icons.Default.SentimentSatisfied)
         )
     }
     val showMainNav = currentRoute in tabs.map { it.route }
@@ -349,7 +357,7 @@ private fun AuthenticatedArenaApp(
             contentWindowInsets = WindowInsets.safeDrawing,
             bottomBar = {
                 if (showMainNav && !isWide) {
-                    NavigationBar(containerColor = ObsidianSurface) {
+                    NavigationBar(containerColor = BottomNavBg) {
                         tabs.forEach { tab ->
                             val selected = currentRoute == tab.route
                             NavigationBarItem(
@@ -358,11 +366,11 @@ private fun AuthenticatedArenaApp(
                                 icon = { Icon(tab.icon, contentDescription = tab.label) },
                                 label = { Text(tab.label, maxLines = 1) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = NeonCyan,
-                                    selectedTextColor = NeonCyan,
-                                    indicatorColor = ObsidianElevated,
-                                    unselectedIconColor = TextMuted,
-                                    unselectedTextColor = TextMuted
+                                    selectedIconColor = Color.White,
+                                    selectedTextColor = Color.White,
+                                    indicatorColor = Color(0xFF3E4552),
+                                    unselectedIconColor = Color(0xFF94A3B8),
+                                    unselectedTextColor = Color(0xFF94A3B8)
                                 ),
                                 modifier = Modifier.testTag("nav_tab_${tab.route}")
                             )
@@ -373,7 +381,7 @@ private fun AuthenticatedArenaApp(
         ) { innerPadding ->
             Row(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                 if (showMainNav && isWide) {
-                    NavigationRail(containerColor = ObsidianSurface, modifier = Modifier.fillMaxHeight()) {
+                    NavigationRail(containerColor = BottomNavBg, modifier = Modifier.fillMaxHeight()) {
                         Spacer(Modifier.height(16.dp))
                         tabs.forEach { tab ->
                             val selected = currentRoute == tab.route
@@ -383,11 +391,11 @@ private fun AuthenticatedArenaApp(
                                 icon = { Icon(tab.icon, contentDescription = tab.label) },
                                 label = { Text(tab.label) },
                                 colors = NavigationRailItemDefaults.colors(
-                                    selectedIconColor = NeonCyan,
-                                    selectedTextColor = NeonCyan,
-                                    indicatorColor = ObsidianElevated,
-                                    unselectedIconColor = TextMuted,
-                                    unselectedTextColor = TextMuted
+                                    selectedIconColor = Color.White,
+                                    selectedTextColor = Color.White,
+                                    indicatorColor = Color(0xFF3E4552),
+                                    unselectedIconColor = Color(0xFF94A3B8),
+                                    unselectedTextColor = Color(0xFF94A3B8)
                                 ),
                                 modifier = Modifier.testTag("rail_tab_${tab.route}")
                             )
@@ -429,6 +437,16 @@ private fun AuthenticatedArenaApp(
                                     broadcasts = broadcasts,
                                     onClaimCheckIn = { arenaVm.claimDailyCheckIn() },
                                     onNavigate = navigateTo,
+                                    onOpenGameTournaments = { gameKey ->
+                                        selectedGameFilter = gameKey
+                                        selectedStatusTab = 1
+                                        navigateTo("tournaments")
+                                    },
+                                    onOpenContestTab = { statusIdx ->
+                                        selectedGameFilter = "All"
+                                        selectedStatusTab = statusIdx
+                                        navigateTo("tournaments")
+                                    },
                                     onSelectTournament = { selectedTournament = it },
                                     onMarkNotificationRead = { arenaVm.markNotificationRead(it) }
                                 )
@@ -438,17 +456,22 @@ private fun AuthenticatedArenaApp(
                                     tournaments = tournaments,
                                     joinedMatches = joinedMatches,
                                     generalConfig = generalConfig,
+                                    initialGameFilter = selectedGameFilter,
+                                    initialStatusTab = selectedStatusTab,
+                                    onOpenMyMatches = { navigateTo("my_matches") },
                                     onSelectTournament = { selectedTournament = it }
                                 )
                             }
                             composable("my_matches") {
+                                BackHandler { navController.popBackStack() }
                                 MyMatchesScreen(
                                     joinedMatches = joinedMatches,
                                     tournaments = tournaments,
                                     roomSecretCache = roomSecretCache,
                                     leaderboard = leaderboard,
                                     onLoadRoomSecret = { arenaVm.loadRoomSecret(it) },
-                                    onSelectTournament = { selectedTournament = it }
+                                    onSelectTournament = { selectedTournament = it },
+                                    onBack = { navController.popBackStack() }
                                 )
                             }
                             composable("wallet") {
@@ -466,7 +489,8 @@ private fun AuthenticatedArenaApp(
                                     onCheckPaymentNow = { arenaVm.checkDepositPaymentNow(it) },
                                     onOpenCheckout = { arenaVm.openExistingCheckout(it) },
                                     onCloseCheckout = { arenaVm.closeCheckoutModal() },
-                                    onSubmitWithdrawal = { method, dest, amt, done -> arenaVm.submitWithdrawal(method, dest, amt, done) }
+                                    onSubmitWithdrawal = { method, dest, amt, done -> arenaVm.submitWithdrawal(method, dest, amt, done) },
+                                    onBack = { navigateTo("home") }
                                 )
                             }
                             composable("profile") {
@@ -475,11 +499,29 @@ private fun AuthenticatedArenaApp(
                                     staffRole = staffRole,
                                     generalConfig = generalConfig,
                                     isAdminAccess = isAdminAccess,
-                                    busy = busy,
-                                    onSaveProfile = { name, ign, gameUid, phone, push -> arenaVm.updateProfile(name, ign, gameUid, phone, push) },
+                                    notifications = userNotifications,
+                                    broadcasts = broadcasts,
                                     onSendTestPush = { arenaVm.sendTestNotification() },
+                                    onTogglePush = { enabled ->
+                                        val u = user
+                                        if (u != null) {
+                                            arenaVm.updateProfile(u.displayName, u.inGameName, u.gameUid, u.phoneNumber, enabled)
+                                        }
+                                    },
+                                    onMarkNotificationRead = { arenaVm.markNotificationRead(it) },
                                     onNavigate = navigateTo,
                                     onOpenAdminCenter = { navigateTo("admin") }
+                                )
+                            }
+                            composable("edit_profile") {
+                                BackHandler { navController.popBackStack() }
+                                EditProfileScreen(
+                                    user = user,
+                                    busy = busy,
+                                    onSaveProfile = { name, ign, gameUid, phone, push ->
+                                        arenaVm.updateProfile(name, ign, gameUid, phone, push)
+                                    },
+                                    onBack = { navController.popBackStack() }
                                 )
                             }
                             composable("refer") {
@@ -488,10 +530,11 @@ private fun AuthenticatedArenaApp(
                                     referralConfig = referralConfig,
                                     referrals = myReferrals,
                                     onApplyReferralCode = { arenaVm.applyReferralCode(it) },
-                                    onBack = { navController.popBackStack() }
+                                    onBack = { navigateTo("home") }
                                 )
                             }
                             composable("support") {
+                                BackHandler { navController.popBackStack() }
                                 SupportDeskScreen(
                                     tickets = myTickets,
                                     selectedMessages = selectedTicketMessages,
@@ -505,6 +548,7 @@ private fun AuthenticatedArenaApp(
                                 )
                             }
                             composable("admin") {
+                                BackHandler { navController.popBackStack() }
                                 if (isAdminAccess) {
                                     AdminCommandCenterScreen(
                                         isSuperAdmin = isSuperAdmin,
@@ -534,11 +578,17 @@ private fun AuthenticatedArenaApp(
             user = user,
             joinedSlot = joinedSlot,
             roomSecret = roomSecretCache[freshMatch.id],
+            participants = participantsCache[freshMatch.id].orEmpty(),
             busy = busy,
             onLoadRoomSecret = { arenaVm.loadRoomSecret(it) },
+            onLoadParticipants = { arenaVm.loadMatchParticipants(it) },
+            onOpenMyMatches = {
+                selectedTournament = null
+                navigateTo("my_matches")
+            },
             onValidateCoupon = { code, fee -> arenaVm.previewMatchCoupon(code, fee) },
-            onJoinMatch = { m, ign, gUid, squad, coupon, onDone ->
-                arenaVm.joinMatch(m, ign, gUid, squad, coupon, onDone)
+            onJoinMatch = { m, ign, gUid, squad, coupon, preferredSlot, onDone ->
+                arenaVm.joinMatch(m, ign, gUid, squad, coupon, preferredSlot, onDone)
             },
             onDismiss = { selectedTournament = null }
         )

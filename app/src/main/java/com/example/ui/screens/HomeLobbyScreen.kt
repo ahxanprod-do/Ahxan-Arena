@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -31,20 +32,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SupportAgent
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,14 +55,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.R
 import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
 import com.example.data.model.GeneralConfig
@@ -72,26 +74,34 @@ import com.example.data.model.Tournament
 import com.example.data.model.UserNotification
 import com.example.data.model.UserProfile
 import com.example.notifications.ArenaNotificationHelper
-import com.example.ui.components.CyberGlassCard
+import com.example.ui.components.ArenaTopHeader
+import com.example.ui.components.CoinBadge
 import com.example.ui.components.MatchBannerImage
-import com.example.ui.components.NeonPrimaryButton
-import com.example.ui.components.SectionHeader
-import com.example.ui.components.SlotsProgressBar
+import com.example.ui.components.NotificationDrawerSheet
 import com.example.ui.components.StatusPill
 import com.example.ui.components.bannerDrawableForKey
-import com.example.ui.theme.AmberWarning
-import com.example.ui.theme.ElectricViolet
+import com.example.ui.theme.ArenaBlue
+import com.example.ui.theme.ArenaCharcoal
+import com.example.ui.theme.ArenaGreen
+import com.example.ui.theme.ArenaOrange
+import com.example.ui.theme.ArenaPurple
+import com.example.ui.theme.CardDarkText
+import com.example.ui.theme.CardMutedText
+import com.example.ui.theme.CrimsonDanger
 import com.example.ui.theme.EmeraldProfit
+import com.example.ui.theme.HeaderNavy
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.ObsidianBg
-import com.example.ui.theme.ObsidianElevated
-import com.example.ui.theme.ObsidianSurface
-import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.utils.ArenaFormatters
 
-@OptIn(ExperimentalMaterial3Api::class)
+private data class GameTile(
+    val filterKey: String,
+    val title: String,
+    val drawableKey: String
+)
+
 @Composable
 fun HomeLobbyScreen(
     user: UserProfile?,
@@ -102,11 +112,12 @@ fun HomeLobbyScreen(
     broadcasts: List<BroadcastNotification>,
     onClaimCheckIn: () -> Unit,
     onNavigate: (String) -> Unit,
+    onOpenGameTournaments: (String) -> Unit = { onNavigate("tournaments") },
+    onOpenContestTab: (Int) -> Unit = { onNavigate("tournaments") },
     onSelectTournament: (Tournament) -> Unit,
     onMarkNotificationRead: (String) -> Unit
 ) {
     val context = LocalContext.current
-    var selectedGame by remember { mutableStateOf("All") }
     var showNotificationDrawer by remember { mutableStateOf(false) }
     var hasPushPerm by remember { mutableStateOf(ArenaNotificationHelper.hasNotificationPermission(context)) }
 
@@ -116,14 +127,6 @@ fun HomeLobbyScreen(
         hasPushPerm = granted
     }
 
-    val games = listOf("All", "BGMI", "Free Fire MAX", "COD Mobile", "Valorant")
-    val filteredTournaments = remember(tournaments, selectedGame) {
-        tournaments.filter {
-            (it.status == "upcoming" || it.status == "live") &&
-                (selectedGame == "All" || it.game.equals(selectedGame, ignoreCase = true))
-        }.take(8)
-    }
-
     val unreadCount = notifications.count { !it.read }
     val today = remember { ArenaFormatters.todayKey() }
     val alreadyCheckedIn = user?.lastCheckInDay == today
@@ -131,351 +134,468 @@ fun HomeLobbyScreen(
     val displayBanners = remember(banners) {
         banners.ifEmpty {
             listOf(
-                CmsBanner(id = "d1", title = "AHXAN CYBER SERIES", subtitle = "Daily Scrims • Instant PayZapi Payouts", drawableKey = "bgmi", redirectRoute = "tournaments"),
-                CmsBanner(id = "d2", title = "PAYZAPI +20% BONUS", subtitle = "Use WELCOME20 on first deposit", drawableKey = "freefire", redirectRoute = "wallet"),
-                CmsBanner(id = "d3", title = "REFER & EARN", subtitle = "Invite squadmates for instant bonus", drawableKey = "codm", redirectRoute = "refer")
+                CmsBanner(id = "d1", title = "AHXAN ARENA CHAMPIONSHIPS", subtitle = "Daily Scrims • Instant PayZapi Payouts", drawableKey = "bgmi", redirectRoute = "tournaments"),
+                CmsBanner(id = "d2", title = "PAYZAPI +20% BONUS", subtitle = "Use WELCOME20 on your deposit", drawableKey = "freefire", redirectRoute = "wallet"),
+                CmsBanner(id = "d3", title = "REFER & EARN", subtitle = "Invite squadmates for instant coins", drawableKey = "codm", redirectRoute = "refer")
             )
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+    val gameTiles = remember {
+        listOf(
+            GameTile("BGMI", "BGMI", "bgmi"),
+            GameTile("Free Fire MAX", "FF MAX", "freefire"),
+            GameTile("COD Mobile", "CODM", "codm"),
+            GameTile("Valorant", "VALORANT", "hero")
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ArenaCharcoal)
     ) {
-        // Top Brand + Wallet Pill + Bell Drawer
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("AHXAN ARENA", style = MaterialTheme.typography.headlineMedium, color = NeonCyan)
-                    Text(
-                        text = "Welcome, ${user?.displayName?.ifBlank { "Warrior" } ?: "Warrior"}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
+        ArenaTopHeader(
+            coinBalance = user?.totalBalance ?: 0.0,
+            unreadCount = unreadCount,
+            onOpenNotifications = { showNotificationDrawer = true },
+            onOpenWallet = { onNavigate("wallet") }
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Scrolling Notice Ticker Card (White card with Orange Speaker block)
+            item {
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(10.dp),
+                    shadowElevation = 2.dp,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(52.dp)
+                                .fillMaxSize()
+                                .background(ArenaOrange),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Campaign,
+                                contentDescription = "Notice",
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        Text(
+                            text = generalConfig.tickerText.ifBlank { "WELCOME TO AHXAN ARENA" },
+                            color = CardDarkText,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp)
+                                .basicMarquee()
+                        )
+                    }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            }
+
+            // Enable Push Alert Prompt if needed on Android 13+
+            if (!hasPushPerm && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                item {
                     Surface(
-                        color = ObsidianElevated,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .border(1.dp, EmeraldProfit.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
-                            .clickable { onNavigate("wallet") }
-                            .testTag("home_wallet_pill")
+                        color = HeaderNavy,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.6f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Wallet", tint = EmeraldProfit, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = ArenaFormatters.formatInr(user?.totalBalance ?: 0.0),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = EmeraldProfit
+                            Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = ArenaOrange, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Enable Match & Room Alerts", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Get instant lock-screen push alerts.", color = TextSecondary, fontSize = 11.sp)
+                            }
+                            Button(
+                                onClick = { notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+                                colors = ButtonDefaults.buttonColors(containerColor = ArenaOrange, contentColor = Color.White),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("enable_push_banner_btn")
+                            ) {
+                                Text("Enable", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Account Details (4 Orange Circular Action Icons)
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Account Details",
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        AccountCircleAction(
+                            label = "My Profile",
+                            icon = Icons.Default.Person,
+                            onClick = { onNavigate("edit_profile") },
+                            modifier = Modifier.weight(1f).testTag("home_profile_action")
+                        )
+                        AccountCircleAction(
+                            label = "My Wallet",
+                            icon = Icons.Default.AccountBalanceWallet,
+                            onClick = { onNavigate("wallet") },
+                            modifier = Modifier.weight(1f).testTag("home_wallet_action")
+                        )
+                        AccountCircleAction(
+                            label = "Top Players",
+                            icon = Icons.Default.EmojiEvents,
+                            onClick = { onNavigate("my_matches") },
+                            modifier = Modifier.weight(1f).testTag("home_top_players_action")
+                        )
+                        AccountCircleAction(
+                            label = "Contact Us",
+                            icon = Icons.Default.SupportAgent,
+                            onClick = { onNavigate("support") },
+                            modifier = Modifier.weight(1f).testTag("home_contact_action")
+                        )
+                    }
+                }
+            }
+
+            // Promo Banners Carousel + Dots
+            item {
+                val pagerState = rememberPagerState(pageCount = { displayBanners.size })
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    HorizontalPager(
+                        state = pagerState,
+                        pageSpacing = 12.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { page ->
+                        val banner = displayBanners[page]
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(168.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { onNavigate(banner.redirectRoute.ifBlank { "tournaments" }) }
+                        ) {
+                            if (banner.imageUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = banner.imageUrl,
+                                    contentDescription = banner.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Image(
+                                    painter = painterResource(id = bannerDrawableForKey(banner.drawableKey)),
+                                    contentDescription = banner.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.88f)))
+                                    )
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(14.dp)
+                            ) {
+                                Text(banner.title, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                                if (banner.subtitle.isNotBlank()) {
+                                    Text(banner.subtitle, color = Color(0xFFE2E8F0), fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(displayBanners.size) { index ->
+                            val selected = pagerState.currentPage == index
+                            Box(
+                                modifier = Modifier
+                                    .size(if (selected) 8.dp else 7.dp)
+                                    .clip(CircleShape)
+                                    .background(if (selected) ArenaPurple else Color(0xFF4B5563))
                             )
                         }
                     }
-                    IconButton(
-                        onClick = { showNotificationDrawer = true },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(ObsidianElevated)
-                            .testTag("notification_bell_button")
+                }
+            }
+
+            // My Contest (3 White Trophy Cards: Upcoming, Ongoing, Completed)
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "My Contest",
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        BadgedBox(
-                            badge = {
-                                if (unreadCount > 0) {
-                                    Badge(containerColor = NeonCyan, contentColor = ObsidianBg) {
-                                        Text("$unreadCount")
+                        ContestSquareCard(
+                            label = "Upcoming",
+                            onClick = { onOpenContestTab(1) },
+                            modifier = Modifier.weight(1f).testTag("home_contest_upcoming")
+                        )
+                        ContestSquareCard(
+                            label = "Ongoing",
+                            onClick = { onOpenContestTab(0) },
+                            modifier = Modifier.weight(1f).testTag("home_contest_ongoing")
+                        )
+                        ContestSquareCard(
+                            label = "Completed",
+                            onClick = { onOpenContestTab(2) },
+                            modifier = Modifier.weight(1f).testTag("home_contest_completed")
+                        )
+                    }
+                }
+            }
+
+            // Daily Check-In Streak (Admin Controlled)
+            if (generalConfig.checkinEnabled) {
+                item {
+                    val streak = user?.streakDays ?: 0L
+                    val nextDay = ((streak % 7L) + 1L).toInt()
+                    val rewards = generalConfig.checkinRewards.ifEmpty { listOf(5L, 8L, 10L, 12L, 15L, 20L, 50L) }
+                    val todayReward = rewards[(nextDay - 1).coerceIn(0, rewards.lastIndex)]
+
+                    Surface(
+                        color = HeaderNavy,
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, EmeraldProfit.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(EmeraldProfit.copy(alpha = 0.16f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = EmeraldProfit)
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text("Daily Check-In ($streak/7)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text(
+                                        text = if (alreadyCheckedIn) "Today's +$todayReward Bonus claimed!" else "Claim Day $nextDay reward: +$todayReward Coins",
+                                        color = if (alreadyCheckedIn) TextSecondary else EmeraldProfit,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                            Button(
+                                onClick = onClaimCheckIn,
+                                enabled = !alreadyCheckedIn,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = EmeraldProfit,
+                                    contentColor = ObsidianBg,
+                                    disabledContainerColor = Color(0xFF374151),
+                                    disabledContentColor = Color(0xFF9CA3AF)
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("claim_checkin_button")
+                            ) {
+                                Text(if (alreadyCheckedIn) "Claimed" else "Claim +$todayReward", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // eSport Games Cards Grid/Row (Image + Solid Orange Footer)
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "eSport Games",
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(gameTiles, key = { it.filterKey }) { tile ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                shadowElevation = 3.dp,
+                                modifier = Modifier
+                                    .width(118.dp)
+                                    .height(142.dp)
+                                    .clickable { onOpenGameTournaments(tile.filterKey) }
+                                    .testTag("game_tile_${tile.filterKey}")
+                            ) {
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    Image(
+                                        painter = painterResource(id = bannerDrawableForKey(tile.drawableKey)),
+                                        contentDescription = tile.title,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxWidth().weight(1f)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(ArenaOrange)
+                                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = tile.title,
+                                            color = Color(0xFF111827),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            maxLines = 1
+                                        )
                                     }
                                 }
                             }
-                        ) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = TextPrimary)
                         }
                     }
                 }
             }
-        }
 
-        // Scrolling Announcement Ticker
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ElectricViolet.copy(alpha = 0.22f))
-                    .border(1.dp, ElectricViolet.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Campaign, contentDescription = "Announcement", tint = AmberWarning, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = generalConfig.tickerText,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = TextPrimary,
-                    maxLines = 1,
-                    modifier = Modifier.basicMarquee()
-                )
-            }
-        }
-
-        // Enable Mobile Shutter Push Banner if not granted
-        if (!hasPushPerm && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            item {
-                CyberGlassCard(glowColor = AmberWarning) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(28.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Enable Mobile Shutter Alerts", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                            Text("Get instant lock-screen alerts for Room IDs, prizes & offers.", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        NeonPrimaryButton(
-                            text = "Enable",
-                            onClick = { notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
-                            accentColor = AmberWarning,
-                            modifier = Modifier.testTag("enable_push_banner_btn")
-                        )
-                    }
-                }
-            }
-        }
-
-        // Promo Banners Carousel
-        item {
-            val pagerState = rememberPagerState(pageCount = { displayBanners.size })
-            HorizontalPager(
-                state = pagerState,
-                pageSpacing = 12.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) { page ->
-                val banner = displayBanners[page]
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(175.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .border(1.dp, NeonCyan.copy(alpha = 0.45f), RoundedCornerShape(20.dp))
-                        .clickable { onNavigate(banner.redirectRoute.ifBlank { "tournaments" }) }
-                ) {
-                    if (banner.imageUrl.isNotBlank()) {
-                        AsyncImage(
-                            model = banner.imageUrl,
-                            contentDescription = banner.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Image(
-                            painter = painterResource(id = bannerDrawableForKey(banner.drawableKey)),
-                            contentDescription = banner.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.92f)))
-                            )
-                    )
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp)
-                    ) {
-                        StatusPill(label = "FEATURED", color = NeonCyan)
-                        Spacer(Modifier.height(6.dp))
-                        Text(banner.title, style = MaterialTheme.typography.titleLarge, color = TextPrimary)
-                        if (banner.subtitle.isNotBlank()) {
-                            Text(banner.subtitle, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Daily Check-In Streak Banner
-        if (generalConfig.checkinEnabled) {
-            item {
-                val streak = user?.streakDays ?: 0L
-                val nextDay = ((streak % 7L) + 1L).toInt()
-                val rewards = generalConfig.checkinRewards.ifEmpty { listOf(5L, 8L, 10L, 12L, 15L, 20L, 50L) }
-                val todayReward = rewards[(nextDay - 1).coerceIn(0, rewards.lastIndex)]
-
-                CyberGlassCard(glowColor = EmeraldProfit) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(EmeraldProfit.copy(alpha = 0.16f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = EmeraldProfit)
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text("Daily Check-In Streak ($streak/7)", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                                Text(
-                                    text = if (alreadyCheckedIn) "Today's ₹$todayReward bonus claimed!" else "Claim Day $nextDay reward: +₹$todayReward Bonus",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (alreadyCheckedIn) TextMuted else EmeraldProfit
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        NeonPrimaryButton(
-                            text = if (alreadyCheckedIn) "Claimed" else "Claim ₹$todayReward",
-                            enabled = !alreadyCheckedIn,
-                            onClick = onClaimCheckIn,
-                            accentColor = EmeraldProfit,
-                            modifier = Modifier.testTag("claim_checkin_button")
-                        )
-                    }
-                }
-            }
-        }
-
-        // Quick Actions (Refer & Earn / Support)
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                CyberGlassCard(
-                    glowColor = ElectricViolet,
-                    onClick = { onNavigate("refer") },
-                    modifier = Modifier.weight(1f).testTag("home_refer_card")
-                ) {
-                    Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = ElectricViolet)
-                    Spacer(Modifier.height(6.dp))
-                    Text("Refer & Earn", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                    Text("Invite friends & earn bonus", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                }
-                CyberGlassCard(
-                    glowColor = NeonCyan,
-                    onClick = { onNavigate("tournaments") },
-                    modifier = Modifier.weight(1f).testTag("home_browse_matches_card")
-                ) {
-                    Icon(Icons.Default.SportsEsports, contentDescription = null, tint = NeonCyan)
-                    Spacer(Modifier.height(6.dp))
-                    Text("All Scrims", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                    Text("${tournaments.count { it.status == "upcoming" || it.status == "live" }} active matches", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                }
-            }
-        }
-
-        // Game Quick Filters
-        item {
-            SectionHeader(title = "Arena Lobby", subtitle = "Filter live & upcoming tournaments", actionLabel = "See All") {
-                onNavigate("tournaments")
-            }
-            Spacer(Modifier.height(8.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(games) { game ->
-                    val selected = selectedGame == game
-                    FilterChip(
-                        selected = selected,
-                        onClick = { selectedGame = game },
-                        label = { Text(game) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = NeonCyan,
-                            selectedLabelColor = ObsidianBg,
-                            containerColor = ObsidianElevated,
-                            labelColor = TextSecondary
-                        )
+            // Live & Upcoming Highlights right below games
+            val spotlight = tournaments.filter { it.status == "upcoming" || it.status == "live" }.take(4)
+            if (spotlight.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Featured Matches",
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
-            }
-        }
-
-        if (filteredTournaments.isEmpty()) {
-            item {
-                CyberGlassCard {
-                    Text("No active matches in $selectedGame yet", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Check back soon or switch game filters. Admins can launch new scrims anytime.", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+                items(spotlight, key = { it.id }) { match ->
+                    TournamentLobbyCard(match = match, onClick = { onSelectTournament(match) })
                 }
-            }
-        } else {
-            items(filteredTournaments, key = { it.id }) { match ->
-                TournamentLobbyCard(match = match, onClick = { onSelectTournament(match) })
             }
         }
     }
 
     if (showNotificationDrawer) {
-        ModalBottomSheet(
-            onDismissRequest = { showNotificationDrawer = false },
-            containerColor = ObsidianSurface
+        NotificationDrawerSheet(
+            notifications = notifications,
+            broadcasts = broadcasts,
+            onMarkNotificationRead = onMarkNotificationRead,
+            onNavigate = onNavigate,
+            onDismiss = { showNotificationDrawer = false }
+        )
+    }
+}
+
+@Composable
+private fun AccountCircleAction(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(vertical = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(ArenaOrange),
+            contentAlignment = Alignment.Center
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text("Arena Alerts & Broadcasts", style = MaterialTheme.typography.headlineSmall, color = NeonCyan)
-                Spacer(Modifier.height(10.dp))
-                val mergedCount = notifications.size + broadcasts.size
-                if (mergedCount == 0) {
-                    Text("No alerts yet. Room IDs, prize wins, and broadcasts appear here.", color = TextMuted, modifier = Modifier.padding(vertical = 20.dp))
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.height(360.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(notifications, key = { "u_${it.id}" }) { n ->
-                            CyberGlassCard(
-                                glowColor = if (n.read) TextMuted else NeonCyan,
-                                onClick = {
-                                    onMarkNotificationRead(n.id)
-                                    showNotificationDrawer = false
-                                    onNavigate(n.route)
-                                }
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                    Text(n.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary, modifier = Modifier.weight(1f))
-                                    if (!n.read) StatusPill("NEW", NeonCyan)
-                                }
-                                Spacer(Modifier.height(4.dp))
-                                Text(n.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                            }
-                        }
-                        items(broadcasts, key = { "b_${it.id}" }) { b ->
-                            CyberGlassCard(
-                                glowColor = ElectricViolet,
-                                onClick = {
-                                    showNotificationDrawer = false
-                                    onNavigate(b.redirectRoute)
-                                }
-                            ) {
-                                StatusPill("BROADCAST", ElectricViolet)
-                                Spacer(Modifier.height(6.dp))
-                                Text(b.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                                Spacer(Modifier.height(4.dp))
-                                Text(b.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(20.dp))
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun ContestSquareCard(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(14.dp),
+        shadowElevation = 3.dp,
+        modifier = modifier
+            .height(98.dp)
+            .clickable { onClick() }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.EmojiEvents,
+                contentDescription = label,
+                tint = ArenaPurple,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = label,
+                color = CardDarkText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
         }
     }
 }
@@ -483,88 +603,229 @@ fun HomeLobbyScreen(
 @Composable
 fun TournamentLobbyCard(
     match: Tournament,
+    isJoined: Boolean = false,
     onClick: () -> Unit
 ) {
-    val statusColor = when (match.status) {
-        "live" -> EmeraldProfit
-        "completed" -> ElectricViolet
-        "cancelled" -> Color(0xFFFF3B5C)
-        else -> NeonCyan
-    }
-    CyberGlassCard(
-        glowColor = statusColor,
-        onClick = onClick,
-        modifier = Modifier.testTag("tournament_card_${match.id}")
+    val isFull = match.filledSlots >= match.maxSlots
+    val spotsLeft = (match.maxSlots - match.filledSlots).coerceAtLeast(0L)
+    val progress = if (match.maxSlots > 0) (match.filledSlots.toFloat() / match.maxSlots.toFloat()).coerceIn(0f, 1f) else 0f
+
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(12.dp),
+        shadowElevation = 4.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .testTag("tournament_card_${match.id}")
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(110.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, statusColor.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-        ) {
-            MatchBannerImage(
-                bannerUrl = match.bannerUrl,
-                bannerKey = match.bannerKey,
-                contentDescription = match.title,
-                modifier = Modifier.fillMaxSize()
-            )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Top Full-Bleed Match Banner
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Brush.verticalGradient(listOf(ObsidianBg.copy(alpha = 0.25f), ObsidianBg.copy(alpha = 0.85f))))
-            )
-            Row(
-                modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.TopStart)
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .height(172.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    StatusPill(label = match.game, color = NeonCyan)
-                    StatusPill(label = match.mode, color = ElectricViolet)
-                }
-                StatusPill(label = match.status, color = statusColor)
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = match.title,
-            style = MaterialTheme.typography.titleLarge,
-            color = TextPrimary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = "${match.mapName} • ${ArenaFormatters.formatTimestampMillis(match.scheduledAtMillis)}",
-            style = MaterialTheme.typography.labelSmall,
-            color = TextMuted
-        )
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text("PRIZE POOL", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                Text(ArenaFormatters.formatInr(match.prizePool), style = MaterialTheme.typography.titleMedium, color = EmeraldProfit)
-            }
-            Column {
-                Text("PER KILL", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                Text(ArenaFormatters.formatInr(match.perKillReward), style = MaterialTheme.typography.titleMedium, color = AmberWarning)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("ENTRY", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                Text(
-                    text = if (match.entryFee <= 0.0) "FREE" else ArenaFormatters.formatInr(match.entryFee),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = NeonCyan
+                MatchBannerImage(
+                    bannerUrl = match.bannerUrl,
+                    bannerKey = match.bannerKey,
+                    contentDescription = match.title,
+                    modifier = Modifier.fillMaxSize()
                 )
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (isJoined) {
+                        StatusPill("JOINED", ArenaGreen)
+                    } else if (match.status == "live") {
+                        StatusPill("LIVE", EmeraldProfit)
+                    }
+                }
+            }
+
+            Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                // Logo + Match Title & Time
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(HeaderNavy)
+                            .padding(5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_arena_emblem),
+                            contentDescription = "Ahxan Arena",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = match.title,
+                            color = CardDarkText,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Time: ${ArenaFormatters.formatTimestampMillis(match.scheduledAtMillis)}",
+                            color = CardMutedText,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Row 1: PRIZE POOL / PER KILL / ENTRY FEE
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                        Text("PRIZE POOL", color = CardMutedText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CoinBadge(size = 16.dp)
+                            Spacer(Modifier.width(4.dp))
+                            Text("${match.prizePool.toLong()}", color = CardDarkText, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                        }
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                        Text("PER KILL", color = CardMutedText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CoinBadge(size = 16.dp)
+                            Spacer(Modifier.width(4.dp))
+                            Text("${match.perKillReward.toLong()}", color = CardDarkText, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                        }
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                        Text("ENTRY FEE", color = CardMutedText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CoinBadge(size = 16.dp)
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = if (match.entryFee <= 0.0) "FREE" else "${match.entryFee.toLong()}",
+                                color = CardDarkText,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Row 2: TYPE / VERSION / MAP
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                        Text("TYPE", color = CardMutedText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(3.dp))
+                        Text(match.mode, color = CardDarkText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                        Text("VERSION", color = CardMutedText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(3.dp))
+                        Text("TPP", color = CardDarkText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                        Text("MAP", color = CardMutedText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(3.dp))
+                        Text(match.mapName.ifBlank { "Classic" }, color = CardDarkText, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Progress bar + Spots + Action Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(5.dp)
+                                .clip(CircleShape),
+                            color = ArenaPurple,
+                            trackColor = Color(0xFFE5E7EB)
+                        )
+                        Spacer(Modifier.height(5.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = if (isFull) "No Spots Left! Match is Full." else "Only $spotsLeft spots left",
+                                color = if (isFull) CrimsonDanger else CardMutedText,
+                                fontSize = 11.sp
+                            )
+                            Text(
+                                text = "${match.filledSlots}/${match.maxSlots}",
+                                color = CardDarkText,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    when {
+                        isJoined -> {
+                            Button(
+                                onClick = onClick,
+                                colors = ButtonDefaults.buttonColors(containerColor = ArenaGreen, contentColor = Color.White),
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Text("JOINED", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                        isFull || match.status != "upcoming" -> {
+                            Surface(
+                                color = Color(0xFF9CA3AF),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = if (isFull) "MATCH FULL" else match.status.uppercase(),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                        else -> {
+                            OutlinedButton(
+                                onClick = onClick,
+                                border = BorderStroke(1.2.dp, ArenaBlue),
+                                shape = RoundedCornerShape(4.dp),
+                                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
+                            ) {
+                                Text("JOIN", color = ArenaBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        SlotsProgressBar(filled = match.filledSlots, max = match.maxSlots)
     }
 }

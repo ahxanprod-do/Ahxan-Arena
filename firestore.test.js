@@ -51,7 +51,7 @@ test("Unauthenticated users cannot read or write any collection", async () => {
   await assertFails(unauthDb.collection("coupons").get());
   await assertFails(unauthDb.collection("app_config").doc("gateway").get());
   await assertFails(unauthDb.collection("app_config").get());
-  await assertSucceeds(unauthDb.collection("app_config").doc("otp").get());
+  await assertFails(unauthDb.collection("app_config").doc("otp").get());
 });
 
 test("User profile: owner creation, safe update, cross-user PII isolation, and role escalation block", async () => {
@@ -173,6 +173,11 @@ test("Room secret gating: only joined players and admins can read roomId/roomPas
   // Joined player Alice can read room secret
   await assertSucceeds(
     aliceDb.collection("tournaments").doc("match_1").collection("secrets").doc("room").get()
+  );
+
+  // Signed-in player Bob CAN list tournament slots for participant list & slot picker
+  await assertSucceeds(
+    bobDb.collection("tournaments").doc("match_1").collection("slots").get()
   );
 
   // Non-joined player Bob CANNOT read room secret

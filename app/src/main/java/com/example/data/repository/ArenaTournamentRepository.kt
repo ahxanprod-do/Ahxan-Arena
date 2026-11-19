@@ -72,6 +72,23 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
         }
     }
 
+    suspend fun fetchMatchParticipants(matchId: String): Result<List<MatchSlot>> {
+        return try {
+            requireUserId()
+            val snap = db.collection("tournaments").document(matchId)
+                .collection("slots").get().await()
+            val list = snap.toObjects(MatchSlot::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                .filter { it.status == "joined" || it.status == "settled" }
+                .sortedBy { it.slotNumber }
+            Result.success(list)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.LIST, "tournaments/$matchId/slots")
+            Result.failure(e)
+        }
+    }
+
     suspend fun validateMatchCoupon(codeRaw: String, entryFee: Double): Result<Coupon> {
         val uid = requireUserId()
         val code = codeRaw.trim().uppercase()
@@ -112,7 +129,8 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
         gameUid: String,
         squadMembers: List<String>,
         couponCodeRaw: String,
-        bonusUsablePercent: Long
+        bonusUsablePercent: Long,
+        preferredSlotNumber: Long? = null
     ): Result<MatchSlot> {
         val uid = requireUserId()
         val cleanIgn = inGameName.trim()
@@ -175,7 +193,8 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
                     }
                 }
 
-                val newSlotNumber = currentFilled + 1L
+                val newFilledCount = currentFilled + 1L
+                val chosenSlot = preferredSlotNumber?.takeIf { it in 1L..maxSlots } ?: newFilledCount
                 val slotPayload = mapOf(
                     "userId" to uid,
                     "matchId" to match.id,
@@ -184,7 +203,7 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
                     "inGameName" to cleanIgn.take(60),
                     "gameUid" to cleanGameUid.take(60),
                     "squadMembers" to squadMembers.filter { it.isNotBlank() }.take(4),
-                    "slotNumber" to newSlotNumber,
+                    "slotNumber" to chosenSlot,
                     "entryPaid" to payableFee,
                     "depositUsed" to depositUsed,
                     "winningUsed" to winningUsed,
@@ -202,7 +221,7 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
                 tx.update(
                     matchRef,
                     mapOf(
-                        "filledSlots" to newSlotNumber,
+                        "filledSlots" to newFilledCount,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 )
@@ -231,7 +250,7 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
                             "direction" to "debit",
                             "walletBucket" to if (depositUsed > 0) "deposit" else "winning",
                             "title" to "Joined ${match.title}",
-                            "subtitle" to "Slot #$newSlotNumber • ${match.game}",
+                            "subtitle" to "Slot #$chosenSlot • ${match.game}",
                             "referenceId" to match.id,
                             "status" to "completed",
                             "createdAt" to FieldValue.serverTimestamp()
@@ -272,7 +291,7 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
                     inGameName = cleanIgn,
                     gameUid = cleanGameUid,
                     squadMembers = squadMembers,
-                    slotNumber = newSlotNumber,
+                    slotNumber = chosenSlot,
                     entryPaid = payableFee,
                     depositUsed = depositUsed,
                     winningUsed = winningUsed,

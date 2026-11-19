@@ -114,6 +114,9 @@ class ArenaViewModel(
     private val _roomSecretCache = MutableStateFlow<Map<String, RoomSecret>>(emptyMap())
     val roomSecretCache: StateFlow<Map<String, RoomSecret>> = _roomSecretCache.asStateFlow()
 
+    private val _participantsCache = MutableStateFlow<Map<String, List<MatchSlot>>>(emptyMap())
+    val participantsCache: StateFlow<Map<String, List<MatchSlot>>> = _participantsCache.asStateFlow()
+
     private var pollingJob: Job? = null
     private var ticketMessagesJob: Job? = null
 
@@ -266,6 +269,15 @@ class ArenaViewModel(
         }
     }
 
+    fun loadMatchParticipants(matchId: String) {
+        viewModelScope.launch {
+            val res = tournamentRepo.fetchMatchParticipants(matchId)
+            res.getOrNull()?.let { roster ->
+                _participantsCache.value = _participantsCache.value + (matchId to roster)
+            }
+        }
+    }
+
     suspend fun previewMatchCoupon(code: String, entryFee: Double): Result<Coupon> =
         tournamentRepo.validateMatchCoupon(code, entryFee)
 
@@ -278,6 +290,7 @@ class ArenaViewModel(
         gameUid: String,
         squadMembers: List<String>,
         couponCode: String,
+        preferredSlotNumber: Long? = null,
         onJoined: () -> Unit
     ) {
         viewModelScope.launch {
@@ -288,10 +301,12 @@ class ArenaViewModel(
                 gameUid = gameUid,
                 squadMembers = squadMembers,
                 couponCodeRaw = couponCode,
-                bonusUsablePercent = generalConfig.value.bonusUsablePercent
+                bonusUsablePercent = generalConfig.value.bonusUsablePercent,
+                preferredSlotNumber = preferredSlotNumber
             )
             _busy.value = false
             res.onSuccess { slot ->
+                loadMatchParticipants(match.id)
                 showMsg(true, "Joined ${match.title} • Slot #${slot.slotNumber}")
                 onJoined()
             }.onFailure {
