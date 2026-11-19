@@ -441,6 +441,19 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
         }
     }
 
+    suspend fun deleteTournament(match: Tournament): Result<Unit> {
+        return try {
+            db.collection("tournaments").document(match.id).delete().await()
+            logAudit("DELETE_MATCH", match.id, "Deleted match ${match.title}")
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, "tournaments/${match.id}")
+            Result.failure(e)
+        }
+    }
+
     suspend fun cloneTournament(source: Tournament): Result<Unit> {
         val cloned = source.copy(
             id = "",
@@ -949,7 +962,9 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
     suspend fun adjustUserWallet(targetUid: String, bucket: String, isCredit: Boolean, amount: Double, reason: String): Result<Unit> {
         return try {
             require(amount > 0.0) { "Amount must be > 0" }
-            require(reason.isNotBlank()) { "Audit reason is mandatory" }
+            val cleanReason = reason.trim().ifBlank {
+                if (isCredit) "Admin Coin Top-Up" else "Admin Coin Deduction"
+            }
             val field = when (bucket) {
                 "winning" -> "winningBalance"
                 "bonus" -> "bonusBalance"
@@ -960,6 +975,7 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
             db.runTransaction { tx ->
                 val userRef = db.collection("users").document(targetUid)
                 val snap = tx.get(userRef)
+                if (!snap.exists()) throw IllegalStateException("User not found")
                 oldBal = snap.getDouble(field) ?: 0.0
                 newBal = if (isCredit) oldBal + amount else (oldBal - amount).coerceAtLeast(0.0)
                 tx.update(userRef, mapOf(field to newBal, "updatedAt" to FieldValue.serverTimestamp()))
@@ -971,18 +987,319 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                         "amount" to amount,
                         "direction" to if (isCredit) "credit" else "debit",
                         "walletBucket" to bucket,
-                        "title" to "Admin ${if (isCredit) "Credit" else "Debit"}",
-                        "subtitle" to reason.take(180),
+                        "title" to if (isCredit) "Admin Added Coins" else "Admin Deducted Coins",
+                        "subtitle" to cleanReason.take(180),
                         "referenceId" to adminUid(),
                         "status" to "completed",
                         "createdAt" to FieldValue.serverTimestamp()
                     )
                 )
             }.await()
-            logAudit("USER_WALLET_ADJUST", targetUid, "${if (isCredit) "Credited" else "Debited"} ₹$amount ($bucket): $reason", "$oldBal", "$newBal")
+            sendUserNotification(
+                uid = targetUid,
+                title = if (isCredit) "+${amount.toInt()} Coins Added!" else "-${amount.toInt()} Coins Deducted",
+                body = "${if (isCredit) "Credited" else "Deducted"} ${amount.toInt()} Coins (${bucket.uppercase()} wallet). Note: $cleanReason",
+                route = "wallet",
+                category = "wallet"
+            )
+            logAudit("USER_WALLET_ADJUST", targetUid, "${if (isCredit) "Credited" else "Debited"} ${amount.toInt()} Coins ($bucket): $cleanReason", "$oldBal", "$newBal")
             Result.success(Unit)
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, "users/$targetUid")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun bulkAdjustCoins(
+        users: List<UserProfile>,
+        bucket: String,
+        amount: Double,
+        reason: String,
+        sendNotif: Boolean
+    ): Result<Int> {
+        return try {
+            require(amount > 0.0) { "Amount must be > 0" }
+            val activeUsers = users.filter { !it.banned && it.userId.isNotBlank() }
+            require(activeUsers.isNotEmpty()) { "No active users available" }
+            val cleanReason = reason.trim().ifBlank { "Admin Coin Airdrop" }
+            val field = when (bucket) {
+                "winning" -> "winningBalance"
+                "bonus" -> "bonusBalance"
+                else -> "depositBalance"
+            }
+
+            var updatedCount = 0
+            activeUsers.forEach { target ->
+                val userRef = db.collection("users").document(target.userId)
+                db.runTransaction { tx ->
+                    val snap = tx.get(userRef)
+                    if (!snap.exists()) return@runTransaction
+                    val oldBal = snap.getDouble(field) ?: 0.0
+                    tx.update(userRef, mapOf(field to (oldBal + amount), "updatedAt" to FieldValue.serverTimestamp()))
+                    tx.set(
+                        userRef.collection("transactions").document(),
+                        mapOf(
+                            "userId" to target.userId,
+                            "type" to "admin_airdrop",
+                            "amount" to amount,
+                            "direction" to "credit",
+                            "walletBucket" to bucket,
+                            "title" to "Admin Bonus Coin Drop",
+                            "subtitle" to cleanReason.take(180),
+                            "referenceId" to adminUid(),
+                            "status" to "completed",
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                }.await()
+                if (sendNotif) {
+                    sendUserNotification(
+                        uid = target.userId,
+                        title = "+${amount.toInt()} Bonus Coins Received!",
+                        body = "$cleanReason • Check your wallet now!",
+                        route = "wallet",
+                        category = "wallet"
+                    )
+                }
+                updatedCount++
+            }
+            logAudit("BULK_COIN_AIRDROP", "users", "Airdropped ${amount.toInt()} Coins ($bucket) to $updatedCount users: $cleanReason")
+            Result.success(updatedCount)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, "users")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun adminUpdateUserDetails(
+        targetUid: String,
+        displayName: String,
+        inGameName: String,
+        gameUid: String,
+        phoneNumber: String
+    ): Result<Unit> {
+        return try {
+            require(displayName.trim().isNotEmpty()) { "Display Name cannot be empty" }
+            db.collection("users").document(targetUid).update(
+                mapOf(
+                    "displayName" to displayName.trim().take(80),
+                    "inGameName" to inGameName.trim().take(60),
+                    "gameUid" to gameUid.trim().take(60),
+                    "phoneNumber" to phoneNumber.trim().take(30),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            logAudit("ADMIN_EDIT_USER", targetUid, "Updated profile details for ${displayName.trim()}")
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, "users/$targetUid")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun manuallyApproveDeposit(
+        deposit: DepositOrder,
+        manualUtr: String,
+        referralConfig: ReferralConfig
+    ): Result<String> {
+        return try {
+            val utr = manualUtr.trim().ifBlank { "MANUAL_${System.currentTimeMillis().toString().takeLast(8)}" }
+            val nowMillis = System.currentTimeMillis()
+            var creditedBonus = 0.0
+            var shouldTriggerReferral = false
+            var referrerUid = ""
+            var referrerCode = ""
+            var depUserId = deposit.userId
+            var amount = deposit.amount
+
+            db.runTransaction { tx ->
+                val depRef = db.collection("deposits").document(deposit.id)
+                val depSnap = tx.get(depRef)
+                if (depSnap.getString("status") != "pending") {
+                    throw IllegalStateException("Deposit already ${depSnap.getString("status")}")
+                }
+                depUserId = depSnap.getString("userId") ?: deposit.userId
+                amount = depSnap.getDouble("amount") ?: deposit.amount
+                val promoCode = depSnap.getString("promoCode").orEmpty()
+                val expectedBonus = depSnap.getDouble("expectedPromoBonus") ?: 0.0
+
+                val userRef = db.collection("users").document(depUserId)
+                val userSnap = tx.get(userRef)
+                val oldDeposit = userSnap.getDouble("depositBalance") ?: 0.0
+                val oldBonus = userSnap.getDouble("bonusBalance") ?: 0.0
+                val alreadyQualified = userSnap.getBoolean("referralQualified") ?: false
+                referrerUid = userSnap.getString("referredByUid").orEmpty()
+                referrerCode = userSnap.getString("referredByCode").orEmpty()
+
+                var promoBonusToCredit = 0.0
+                val couponRef = if (promoCode.isNotBlank() && expectedBonus > 0.0) {
+                    db.collection("coupons").document(promoCode)
+                } else null
+                val couponSnap = couponRef?.let { tx.get(it) }
+                if (couponSnap != null && couponSnap.exists()) {
+                    val active = couponSnap.getBoolean("active") ?: false
+                    val used = couponSnap.getLong("usedCount") ?: 0L
+                    val maxUses = couponSnap.getLong("maxGlobalUses") ?: 0L
+                    if (active && used < maxUses) {
+                        promoBonusToCredit = expectedBonus
+                    }
+                }
+                creditedBonus = promoBonusToCredit
+
+                shouldTriggerReferral = !alreadyQualified &&
+                    referrerUid.isNotBlank() &&
+                    referralConfig.enabled &&
+                    referralConfig.triggerRule == "first_deposit" &&
+                    amount >= referralConfig.minDepositThreshold
+
+                tx.update(
+                    depRef,
+                    mapOf(
+                        "status" to "completed",
+                        "utr" to utr,
+                        "promoBonusCredited" to promoBonusToCredit,
+                        "paidAtMillis" to nowMillis,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+
+                tx.update(
+                    userRef,
+                    mapOf(
+                        "depositBalance" to (oldDeposit + amount),
+                        "bonusBalance" to (oldBonus + promoBonusToCredit),
+                        "referralQualified" to (alreadyQualified || shouldTriggerReferral),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+
+                tx.set(
+                    userRef.collection("transactions").document(),
+                    mapOf(
+                        "userId" to depUserId,
+                        "type" to "deposit",
+                        "amount" to amount,
+                        "direction" to "credit",
+                        "walletBucket" to "deposit",
+                        "title" to "Manual QR Deposit Approved",
+                        "subtitle" to "UTR: $utr",
+                        "referenceId" to deposit.payzapiOrderId,
+                        "status" to "completed",
+                        "createdAt" to FieldValue.serverTimestamp()
+                    )
+                )
+
+                if (promoBonusToCredit > 0.0 && couponRef != null && couponSnap != null) {
+                    val prevUsed = couponSnap.getLong("usedCount") ?: 0L
+                    val prevTotal = couponSnap.getDouble("totalDiscountGiven") ?: 0.0
+                    tx.update(
+                        couponRef,
+                        mapOf(
+                            "usedCount" to (prevUsed + 1L),
+                            "totalDiscountGiven" to (prevTotal + promoBonusToCredit),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    tx.set(
+                        couponRef.collection("redemptions").document(),
+                        mapOf(
+                            "userId" to depUserId,
+                            "userEmail" to (depSnap.getString("userEmail") ?: ""),
+                            "code" to promoCode,
+                            "orderOrMatchId" to deposit.id,
+                            "amount" to promoBonusToCredit,
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    tx.set(
+                        userRef.collection("transactions").document(),
+                        mapOf(
+                            "userId" to depUserId,
+                            "type" to "promo_bonus",
+                            "amount" to promoBonusToCredit,
+                            "direction" to "credit",
+                            "walletBucket" to "bonus",
+                            "title" to "Promo Bonus ($promoCode)",
+                            "subtitle" to "Deposit offer credited",
+                            "referenceId" to deposit.id,
+                            "status" to "completed",
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                }
+            }.await()
+
+            if (shouldTriggerReferral && referrerUid.isNotBlank()) {
+                val rewardAmt = if (referralConfig.referrerRewardType == "percent") {
+                    (amount * referralConfig.referrerRewardValue / 100.0).coerceAtLeast(1.0)
+                } else {
+                    referralConfig.referrerRewardValue
+                }
+                runCatching {
+                    db.runTransaction { tx ->
+                        val refDocRef = db.collection("referrals").document(depUserId)
+                        val referrerRef = db.collection("users").document(referrerUid)
+                        val referrerSnap = tx.get(referrerRef)
+                        if (referrerSnap.exists()) {
+                            val oldBonus = referrerSnap.getDouble("bonusBalance") ?: 0.0
+                            val oldCount = referrerSnap.getLong("referralCount") ?: 0L
+                            val oldEarnings = referrerSnap.getDouble("referralEarnings") ?: 0.0
+                            tx.update(
+                                referrerRef,
+                                mapOf(
+                                    "bonusBalance" to (oldBonus + rewardAmt),
+                                    "referralCount" to (oldCount + 1L),
+                                    "referralEarnings" to (oldEarnings + rewardAmt),
+                                    "updatedAt" to FieldValue.serverTimestamp()
+                                )
+                            )
+                            tx.set(
+                                referrerRef.collection("transactions").document(),
+                                mapOf(
+                                    "userId" to referrerUid,
+                                    "type" to "referral",
+                                    "amount" to rewardAmt,
+                                    "direction" to "credit",
+                                    "walletBucket" to "bonus",
+                                    "title" to "Referral Reward Unlocked!",
+                                    "subtitle" to "Code: $referrerCode",
+                                    "referenceId" to depUserId,
+                                    "status" to "completed",
+                                    "createdAt" to FieldValue.serverTimestamp()
+                                )
+                            )
+                        }
+                        if (tx.get(refDocRef).exists()) {
+                            tx.update(
+                                refDocRef,
+                                mapOf(
+                                    "status" to "qualified",
+                                    "rewardAmount" to rewardAmt,
+                                    "updatedAt" to FieldValue.serverTimestamp()
+                                )
+                            )
+                        }
+                    }.await()
+                }
+            }
+
+            sendUserNotification(
+                uid = depUserId,
+                title = "Deposit Approved! +${amount.toInt()} Coins",
+                body = "Your deposit of ₹${amount.toInt()} (UTR: $utr) has been credited to your wallet.",
+                route = "wallet",
+                category = "wallet"
+            )
+            logAudit("MANUAL_APPROVE_DEPOSIT", deposit.id, "Manually approved deposit ₹${amount.toInt()} for ${deposit.userName} (UTR: $utr)")
+            Result.success("Approved ₹${amount.toInt()} + ₹${creditedBonus.toInt()} promo bonus for ${deposit.userName}")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, "deposits/${deposit.id}")
             Result.failure(e)
         }
     }

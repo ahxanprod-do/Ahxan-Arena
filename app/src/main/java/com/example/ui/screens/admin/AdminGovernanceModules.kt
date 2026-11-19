@@ -4,11 +4,16 @@ import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,25 +27,32 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,13 +63,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.AuditLog
 import com.example.data.model.CmsBanner
@@ -65,18 +81,29 @@ import com.example.data.model.GameCategory
 import com.example.data.model.GeneralConfig
 import com.example.data.model.StaffRole
 import com.example.data.model.UserProfile
+import com.example.ui.components.CoinBadge
 import com.example.ui.components.CyberGlassCard
+import com.example.ui.components.KpiMiniStat
 import com.example.ui.components.MatchBannerImage
 import com.example.ui.components.NeonPrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.StatusPill
 import com.example.ui.components.bannerDrawableForKey
 import com.example.ui.theme.AmberWarning
+import com.example.ui.theme.ArenaBlue
+import com.example.ui.theme.ArenaCharcoal
+import com.example.ui.theme.ArenaGreen
+import com.example.ui.theme.ArenaOrange
+import com.example.ui.theme.ArenaPurple
+import com.example.ui.theme.CoinGold
+import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.CrimsonDanger
 import com.example.ui.theme.ElectricViolet
 import com.example.ui.theme.EmeraldProfit
+import com.example.ui.theme.HeaderNavy
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.ObsidianBg
+import com.example.ui.theme.ObsidianElevated
 import com.example.ui.theme.ObsidianSurface
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -85,7 +112,7 @@ import com.example.utils.ArenaFormatters
 import com.example.utils.QrCodeUtils
 import com.example.viewmodel.AdminViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AdminUsersCrmModule(
     users: List<UserProfile>,
@@ -93,84 +120,340 @@ fun AdminUsersCrmModule(
     adminVm: AdminViewModel
 ) {
     var query by remember { mutableStateOf("") }
+    var filterTab by remember { mutableStateOf("All") }
+    var sortBy by remember { mutableStateOf("Highest Coins") }
     var selectedUser by remember { mutableStateOf<UserProfile?>(null) }
+    var coinTargetUser by remember { mutableStateOf<UserProfile?>(null) }
+    var showGlobalCoinPicker by remember { mutableStateOf(false) }
+    var showBulkDropSheet by remember { mutableStateOf(false) }
 
-    val filtered = remember(users, query) {
-        if (query.isBlank()) users else users.filter {
-            it.displayName.contains(query, true) ||
-                it.email.contains(query, true) ||
-                it.userId.contains(query, true) ||
-                it.referralCode.contains(query, true)
+    val totalCoinsInWallets = remember(users) { users.sumOf { it.totalBalance } }
+    val bannedCount = remember(users) { users.count { it.banned } }
+
+    val filtered = remember(users, query, filterTab, sortBy) {
+        val q = query.trim()
+        val base = users.filter { u ->
+            val matchesQuery = q.isBlank() ||
+                u.displayName.contains(q, true) ||
+                u.email.contains(q, true) ||
+                u.inGameName.contains(q, true) ||
+                u.gameUid.contains(q, true) ||
+                u.phoneNumber.contains(q, true) ||
+                u.userId.contains(q, true) ||
+                u.referralCode.contains(q, true)
+            val matchesTab = when (filterTab) {
+                "With Coins" -> u.totalBalance > 0.0
+                "Zero Bal" -> u.totalBalance <= 0.0
+                "Banned" -> u.banned
+                "Admin/Staff" -> u.role.equals("admin", true) || u.role.equals("staff", true)
+                else -> true
+            }
+            matchesQuery && matchesTab
+        }
+        when (sortBy) {
+            "Highest Coins" -> base.sortedByDescending { it.totalBalance }
+            "Matches" -> base.sortedByDescending { it.matchesPlayed }
+            else -> base.sortedBy { it.displayName.lowercase() }
         }
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         item {
-            SectionHeader("User 360° CRM & Ban Control", "${users.size} players")
+            SectionHeader("All Users & Coin Control", "${filtered.size} of ${users.size} registered players")
             Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                KpiMiniStat("All Users", "${users.size}", ArenaOrange, Modifier.weight(1f))
+                KpiMiniStat("Wallet Coins", "${totalCoinsInWallets.toInt()} C", CoinYellow, Modifier.weight(1f))
+                KpiMiniStat("Banned", "$bannedCount", CrimsonDanger, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NeonPrimaryButton(
+                    text = "+ Add Coin to User",
+                    icon = Icons.Default.AccountBalanceWallet,
+                    accentColor = ArenaGreen,
+                    onClick = { showGlobalCoinPicker = true },
+                    modifier = Modifier.weight(1f).testTag("admin_users_quick_add_coin_btn")
+                )
+                NeonPrimaryButton(
+                    text = "Bulk Coin Drop",
+                    icon = Icons.Default.CardGiftcard,
+                    accentColor = ArenaPurple,
+                    onClick = { showBulkDropSheet = true },
+                    modifier = Modifier.weight(1f).testTag("admin_bulk_airdrop_btn")
+                )
+            }
+            Spacer(Modifier.height(10.dp))
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("Search name, email, UID, or referral code") },
+                label = { Text("Search name, email, IGN, game UID, phone or code") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().testTag("admin_user_search_input")
             )
+            Spacer(Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(listOf("All", "With Coins", "Zero Bal", "Banned", "Admin/Staff")) { tab ->
+                    FilterChip(
+                        selected = filterTab == tab,
+                        onClick = { filterTab = tab },
+                        label = { Text(tab) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ArenaOrange,
+                            selectedLabelColor = Color.White,
+                            containerColor = ObsidianElevated
+                        )
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Sort:", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                listOf("Highest Coins", "Matches", "A-Z").forEach { s ->
+                    FilterChip(
+                        selected = sortBy == s,
+                        onClick = { sortBy = s },
+                        label = { Text(s, fontSize = 11.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ArenaPurple,
+                            selectedLabelColor = Color.White,
+                            containerColor = ObsidianElevated
+                        )
+                    )
+                }
+            }
         }
+
+        if (filtered.isEmpty()) {
+            item {
+                CyberGlassCard(glowColor = ArenaOrange) {
+                    Text(
+                        text = if (users.isEmpty()) "Loading registered players from Firestore..." else "No users matched your search/filter.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                }
+            }
+        }
+
         items(filtered, key = { it.userId }) { u ->
-            CyberGlassCard(glowColor = if (u.banned) CrimsonDanger else NeonCyan, onClick = { selectedUser = u }) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(u.displayName, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                        Text("${u.email} • ${u.referralCode}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                        Text("Bal: ${ArenaFormatters.formatInr(u.totalBalance)} • Matches: ${u.matchesPlayed}", style = MaterialTheme.typography.labelSmall, color = EmeraldProfit)
+            CyberGlassCard(glowColor = if (u.banned) CrimsonDanger else ArenaOrange) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(if (u.banned) CrimsonDanger.copy(alpha = 0.25f) else ArenaPurple.copy(alpha = 0.35f))
+                                .border(1.5.dp, if (u.banned) CrimsonDanger else ArenaOrange, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = u.displayName.ifBlank { u.email }.take(1).uppercase(),
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = u.displayName.ifBlank { "Unnamed Player" },
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = u.email.ifBlank { u.userId },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                    StatusPill(if (u.banned) "BANNED" else u.role.uppercase(), if (u.banned) CrimsonDanger else NeonCyan)
+                    Spacer(Modifier.width(6.dp))
+                    Surface(
+                        color = CoinYellow.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(50),
+                        border = BorderStroke(1.dp, CoinGold.copy(alpha = 0.7f))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            CoinBadge(size = 15.dp)
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "${u.totalBalance.toInt()}",
+                                color = CoinYellow,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Dep: ${u.depositBalance.toInt()} • Win: ${u.winningBalance.toInt()} • Bonus: ${u.bonusBalance.toInt()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ArenaGreen
+                    )
+                    StatusPill(
+                        if (u.banned) "BANNED" else u.role.uppercase(),
+                        if (u.banned) CrimsonDanger else ArenaBlue
+                    )
+                }
+                Text(
+                    text = "IGN: ${u.inGameName.ifBlank { "-" }} • UID: ${u.gameUid.ifBlank { "-" }} • Ph: ${u.phoneNumber.ifBlank { "-" }} • Matches: ${u.matchesPlayed}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { coinTargetUser = u },
+                        colors = ButtonDefaults.buttonColors(containerColor = ArenaGreen, contentColor = Color.White),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f).testTag("user_add_coin_${u.userId}")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add Coin", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = { selectedUser = u },
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.7f)),
+                        modifier = Modifier.weight(1f).testTag("user_manage_${u.userId}")
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = ArenaOrange, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Manage 360°", color = ArenaOrange, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
     }
 
+    if (showGlobalCoinPicker || coinTargetUser != null) {
+        AdminCoinAdjustmentSheet(
+            initialUser = coinTargetUser,
+            allUsers = users,
+            busy = busy,
+            adminVm = adminVm,
+            onDismiss = {
+                coinTargetUser = null
+                showGlobalCoinPicker = false
+            }
+        )
+    }
+
+    if (showBulkDropSheet) {
+        BulkCoinAirdropSheet(
+            users = users,
+            busy = busy,
+            adminVm = adminVm,
+            onDismiss = { showBulkDropSheet = false }
+        )
+    }
+
     selectedUser?.let { u ->
-        var bucket by remember(u.userId) { mutableStateOf("deposit") }
-        var isCredit by remember(u.userId) { mutableStateOf(true) }
-        var amount by remember(u.userId) { mutableStateOf("") }
-        var reason by remember(u.userId) { mutableStateOf("") }
+        var editName by remember(u.userId) { mutableStateOf(u.displayName) }
+        var editIgn by remember(u.userId) { mutableStateOf(u.inGameName) }
+        var editGameUid by remember(u.userId) { mutableStateOf(u.gameUid) }
+        var editPhone by remember(u.userId) { mutableStateOf(u.phoneNumber) }
+        var directTitle by remember(u.userId) { mutableStateOf("") }
+        var directBody by remember(u.userId) { mutableStateOf("") }
         var banReason by remember(u.userId) { mutableStateOf(u.banReason.ifBlank { "Fair-play violation" }) }
 
         ModalBottomSheet(onDismissRequest = { selectedUser = null }, containerColor = ObsidianSurface) {
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
-                Text("User 360° • ${u.displayName}", style = MaterialTheme.typography.headlineSmall, color = NeonCyan)
-                Text("UID: ${u.userId}\nEmail: ${u.email}\nIGN: ${u.inGameName} | Game UID: ${u.gameUid}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                Text("User 360° • ${u.displayName}", style = MaterialTheme.typography.headlineSmall, color = ArenaOrange)
+                Text("Doc ID: ${u.userId}\nEmail: ${u.email} • Ref: ${u.referralCode}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
                 Spacer(Modifier.height(8.dp))
-                Text("Deposit: ${ArenaFormatters.formatInr(u.depositBalance)} | Winning: ${ArenaFormatters.formatInr(u.winningBalance)} | Bonus: ${ArenaFormatters.formatInr(u.bonusBalance)}", style = MaterialTheme.typography.labelLarge, color = EmeraldProfit)
-
-                Spacer(Modifier.height(12.dp))
-                Text("Manual Wallet Credit / Debit", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(selected = isCredit, onClick = { isCredit = true }, label = { Text("Credit (+)") })
-                    FilterChip(selected = !isCredit, onClick = { isCredit = false }, label = { Text("Debit (-)") })
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("deposit", "winning", "bonus").forEach { b ->
-                        FilterChip(selected = bucket == b, onClick = { bucket = b }, label = { Text(b) })
-                    }
-                }
-                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Amount ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(value = reason, onValueChange = { reason = it }, label = { Text("Mandatory Audit Reason") }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Total: ${u.totalBalance.toInt()} Coins (Dep: ${u.depositBalance.toInt()} | Win: ${u.winningBalance.toInt()} | Bonus: ${u.bonusBalance.toInt()})",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = EmeraldProfit
+                )
+                Spacer(Modifier.height(10.dp))
                 NeonPrimaryButton(
-                    text = if (busy) "Applying..." else "Execute Wallet Adjustment",
-                    enabled = !busy && (amount.toDoubleOrNull() ?: 0.0) > 0.0 && reason.isNotBlank(),
+                    text = "+ Add / Deduct Coins for ${u.displayName.ifBlank { "User" }}",
+                    icon = Icons.Default.AccountBalanceWallet,
+                    accentColor = ArenaGreen,
                     onClick = {
-                        adminVm.adjustUserWallet(u.userId, bucket, isCredit, amount.toDoubleOrNull() ?: 0.0, reason)
                         selectedUser = null
+                        coinTargetUser = u
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("user360_open_coin_btn")
                 )
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(16.dp))
+                Text("Edit Player Details", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Display Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = editIgn, onValueChange = { editIgn = it }, label = { Text("In-Game Name (IGN)") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = editGameUid, onValueChange = { editGameUid = it }, label = { Text("Game UID") }, singleLine = true, modifier = Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Phone Number") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                NeonPrimaryButton(
+                    text = if (busy) "Saving..." else "Save Player Profile",
+                    accentColor = ArenaPurple,
+                    enabled = !busy,
+                    onClick = {
+                        adminVm.updateUserDetails(u.userId, editName, editIgn, editGameUid, editPhone)
+                        selectedUser = null
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("user360_save_profile_btn")
+                )
+
+                Spacer(Modifier.height(16.dp))
+                Text("Send Direct Alert to Player", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(value = directTitle, onValueChange = { directTitle = it }, label = { Text("Notification Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(value = directBody, onValueChange = { directBody = it }, label = { Text("Message Body") }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        adminVm.sendBroadcast(directTitle.trim(), directBody.trim(), "", "home", "user", u.userId)
+                        directTitle = ""
+                        directBody = ""
+                    },
+                    enabled = !busy && directTitle.isNotBlank() && directBody.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = CoinYellow, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Send Direct Notification", color = CoinYellow)
+                }
+
+                Spacer(Modifier.height(16.dp))
                 OutlinedTextField(value = banReason, onValueChange = { banReason = it }, label = { Text("Ban / Unban Reason") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Button(
@@ -178,16 +461,365 @@ fun AdminUsersCrmModule(
                         adminVm.toggleBanUser(u.userId, !u.banned, banReason)
                         selectedUser = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (u.banned) EmeraldProfit else CrimsonDanger, contentColor = if (u.banned) ObsidianBg else TextPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (u.banned) EmeraldProfit else CrimsonDanger, contentColor = Color.White),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (u.banned) "Unban Player" else "Ban Player Account")
+                    Text(if (u.banned) "Unban Player" else "Ban Player Account", fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(24.dp))
             }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun AdminCoinAdjustmentSheet(
+    initialUser: UserProfile?,
+    allUsers: List<UserProfile>,
+    busy: Boolean,
+    adminVm: AdminViewModel,
+    onDismiss: () -> Unit
+) {
+    var chosenUser by remember(initialUser?.userId) { mutableStateOf(initialUser) }
+    var userSearch by remember { mutableStateOf("") }
+    var bucket by remember { mutableStateOf("deposit") }
+    var isCredit by remember { mutableStateOf(true) }
+    var amountText by remember { mutableStateOf("100") }
+    var reason by remember { mutableStateOf("") }
+
+    val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
+    val filteredPickerUsers = remember(allUsers, userSearch) {
+        val q = userSearch.trim()
+        if (q.isBlank()) allUsers.sortedByDescending { it.totalBalance }.take(12)
+        else allUsers.filter {
+            it.displayName.contains(q, true) ||
+                it.email.contains(q, true) ||
+                it.inGameName.contains(q, true) ||
+                it.phoneNumber.contains(q, true) ||
+                it.userId.contains(q, true)
+        }.take(20)
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = ObsidianSurface) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CoinBadge(size = 24.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = if (chosenUser == null) "Select Player to Add Coins" else "Add / Deduct Coins",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = CoinYellow
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+
+            if (chosenUser == null) {
+                OutlinedTextField(
+                    value = userSearch,
+                    onValueChange = { userSearch = it },
+                    label = { Text("Search player by name, email, IGN or phone") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("coin_picker_search")
+                )
+                Spacer(Modifier.height(8.dp))
+                if (filteredPickerUsers.isEmpty()) {
+                    Text("No players found.", color = TextMuted, style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        filteredPickerUsers.forEach { u ->
+                            Surface(
+                                color = ObsidianElevated,
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { chosenUser = u }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(u.displayName.ifBlank { "Player" }, color = TextPrimary, fontWeight = FontWeight.Bold)
+                                        Text(u.email.ifBlank { u.userId }, color = TextMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    Text("${u.totalBalance.toInt()} C", color = CoinYellow, fontWeight = FontWeight.ExtraBold)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                val u = chosenUser!!
+                Surface(
+                    color = ObsidianElevated,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(u.displayName.ifBlank { u.email }, color = TextPrimary, fontWeight = FontWeight.Bold)
+                            Text(u.email.ifBlank { u.userId }, color = TextMuted, style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                "Current: ${u.totalBalance.toInt()} Coins (Dep ${u.depositBalance.toInt()} • Win ${u.winningBalance.toInt()} • Bonus ${u.bonusBalance.toInt()})",
+                                color = ArenaGreen,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                        if (initialUser == null) {
+                            OutlinedButton(onClick = { chosenUser = null }) {
+                                Text("Change", color = ArenaOrange, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = isCredit,
+                        onClick = { isCredit = true },
+                        label = { Text("Add Coins (+)", fontWeight = FontWeight.Bold) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ArenaGreen,
+                            selectedLabelColor = Color.White,
+                            containerColor = ObsidianElevated
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = !isCredit,
+                        onClick = { isCredit = false },
+                        label = { Text("Deduct Coins (-)", fontWeight = FontWeight.Bold) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = CrimsonDanger,
+                            selectedLabelColor = Color.White,
+                            containerColor = ObsidianElevated
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Text("Quick Amounts", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                Spacer(Modifier.height(4.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    listOf(10, 50, 100, 250, 500, 1000, 5000).forEach { preset ->
+                        FilterChip(
+                            selected = amountText == preset.toString(),
+                            onClick = { amountText = preset.toString() },
+                            label = { Text("${if (isCredit) "+" else "-"}$preset") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CoinYellow,
+                                selectedLabelColor = Color(0xFF111827),
+                                containerColor = ObsidianElevated
+                            )
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    label = { Text("Custom Coins Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("admin_coin_amount_input")
+                )
+
+                Spacer(Modifier.height(8.dp))
+                Text("Target Wallet Bucket", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("deposit" to "Deposit", "winning" to "Winning", "bonus" to "Bonus").forEach { (key, lbl) ->
+                        FilterChip(
+                            selected = bucket == key,
+                            onClick = { bucket = key },
+                            label = { Text(lbl) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = ArenaPurple,
+                                selectedLabelColor = Color.White,
+                                containerColor = ObsidianElevated
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text("Note / Reason (Optional — auto-fills)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                val currentBucketVal = when (bucket) {
+                    "winning" -> u.winningBalance
+                    "bonus" -> u.bonusBalance
+                    else -> u.depositBalance
+                }
+                val newTotal = if (isCredit) u.totalBalance + parsedAmount else (u.totalBalance - parsedAmount).coerceAtLeast(0.0)
+                val newBucketVal = if (isCredit) currentBucketVal + parsedAmount else (currentBucketVal - parsedAmount).coerceAtLeast(0.0)
+
+                Spacer(Modifier.height(10.dp))
+                Surface(
+                    color = HeaderNavy,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, (if (isCredit) ArenaGreen else CrimsonDanger).copy(alpha = 0.6f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${bucket.uppercase()} Bucket: ${currentBucketVal.toInt()} -> ${newBucketVal.toInt()}",
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        Text(
+                            text = "Total: ${newTotal.toInt()} C",
+                            color = CoinYellow,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                NeonPrimaryButton(
+                    text = if (busy) "Updating Wallet..." else "${if (isCredit) "Add +" else "Deduct -"}${parsedAmount.toInt()} Coins",
+                    icon = Icons.Default.AccountBalanceWallet,
+                    accentColor = if (isCredit) ArenaGreen else CrimsonDanger,
+                    enabled = !busy && parsedAmount > 0.0,
+                    onClick = {
+                        adminVm.adjustUserWallet(u.userId, bucket, isCredit, parsedAmount, reason.trim())
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("admin_execute_coin_btn")
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun BulkCoinAirdropSheet(
+    users: List<UserProfile>,
+    busy: Boolean,
+    adminVm: AdminViewModel,
+    onDismiss: () -> Unit
+) {
+    val activeUsers = remember(users) { users.filter { !it.banned } }
+    var bucket by remember { mutableStateOf("bonus") }
+    var amountText by remember { mutableStateOf("50") }
+    var reason by remember { mutableStateOf("Festival / Event Coin Drop") }
+    var sendNotif by remember { mutableStateOf(true) }
+    val amount = amountText.toDoubleOrNull() ?: 0.0
+
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = ObsidianSurface) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            Text("Bulk Coin Airdrop (All Players)", style = MaterialTheme.typography.headlineSmall, color = ArenaPurple)
+            Text(
+                "Credits coins simultaneously to ${activeUsers.size} active (non-banned) user accounts.",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextMuted
+            )
+            Spacer(Modifier.height(10.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(10, 25, 50, 100, 250, 500).forEach { preset ->
+                    FilterChip(
+                        selected = amountText == preset.toString(),
+                        onClick = { amountText = preset.toString() },
+                        label = { Text("+$preset C") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = CoinYellow,
+                            selectedLabelColor = Color(0xFF111827),
+                            containerColor = ObsidianElevated
+                        )
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = amountText,
+                onValueChange = { amountText = it },
+                label = { Text("Coins Per User") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("bonus" to "Bonus", "deposit" to "Deposit", "winning" to "Winning").forEach { (key, lbl) ->
+                    FilterChip(
+                        selected = bucket == key,
+                        onClick = { bucket = key },
+                        label = { Text(lbl) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            OutlinedTextField(
+                value = reason,
+                onValueChange = { reason = it },
+                label = { Text("Event / Airdrop Reason") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Notify every player in-app", color = TextPrimary)
+                Switch(checked = sendNotif, onCheckedChange = { sendNotif = it })
+            }
+            Spacer(Modifier.height(12.dp))
+            NeonPrimaryButton(
+                text = if (busy) "Airdropping..." else "Send +${amount.toInt()} Coins to ${activeUsers.size} Users",
+                icon = Icons.Default.CardGiftcard,
+                accentColor = ArenaPurple,
+                enabled = !busy && activeUsers.isNotEmpty() && amount > 0.0,
+                onClick = {
+                    adminVm.bulkAddCoins(users, bucket, amount, reason.trim(), sendNotif)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth().testTag("admin_execute_bulk_drop_btn")
+            )
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

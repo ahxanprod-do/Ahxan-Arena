@@ -353,6 +353,10 @@ fun AdminGatewayDepositsModule(
             }
         }
         items(filtered, key = { it.id }) { dep ->
+            var manualOpen by remember(dep.id) { mutableStateOf(false) }
+            var manualUtr by remember(dep.id) {
+                mutableStateOf(dep.utr.ifBlank { "MANUAL_${dep.id.take(6).uppercase()}" })
+            }
             CyberGlassCard(glowColor = if (dep.status == "completed") EmeraldProfit else AmberWarning) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -364,14 +368,47 @@ fun AdminGatewayDepositsModule(
                 }
                 if (dep.status == "pending") {
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { adminVm.verifyDepositWithPayZapi(dep, gatewayConfig, referralConfig) },
-                        enabled = !busy,
-                        modifier = Modifier.fillMaxWidth().testTag("admin_verify_deposit_${dep.id}")
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Verify with PayZapi", color = NeonCyan)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { adminVm.verifyDepositWithPayZapi(dep, gatewayConfig, referralConfig) },
+                            enabled = !busy,
+                            modifier = Modifier.weight(1f).testTag("admin_verify_deposit_${dep.id}")
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Verify API", color = NeonCyan)
+                        }
+                        Button(
+                            onClick = { manualOpen = !manualOpen },
+                            enabled = !busy,
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldProfit, contentColor = Color.White),
+                            modifier = Modifier.weight(1f).testTag("admin_manual_approve_dep_${dep.id}")
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Manual Approve")
+                        }
+                    }
+                    if (manualOpen) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = manualUtr,
+                            onValueChange = { manualUtr = it },
+                            label = { Text("UTR / Reference ID") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        NeonPrimaryButton(
+                            text = if (busy) "Crediting..." else "Confirm & Credit ${dep.amount.toInt()} Coins",
+                            accentColor = EmeraldProfit,
+                            enabled = !busy,
+                            onClick = {
+                                adminVm.manuallyApproveDeposit(dep, manualUtr.trim(), referralConfig)
+                                manualOpen = false
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("admin_confirm_manual_dep_${dep.id}")
+                        )
                     }
                 }
             }

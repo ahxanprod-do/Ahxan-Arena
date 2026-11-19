@@ -33,16 +33,19 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -82,6 +85,8 @@ import com.example.ui.components.NeonPrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.StatusPill
 import com.example.ui.theme.AmberWarning
+import com.example.ui.theme.ArenaOrange
+import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.CrimsonDanger
 import com.example.ui.theme.ElectricViolet
 import com.example.ui.theme.EmeraldProfit
@@ -227,6 +232,20 @@ fun AdminTournamentEngineModule(
     var publishingRoomMatch by remember { mutableStateOf<Tournament?>(null) }
     var rosterMatch by remember { mutableStateOf<Tournament?>(null) }
     var resultsMatch by remember { mutableStateOf<Tournament?>(null) }
+    var matchQuery by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf("All") }
+
+    val filteredMatches = remember(tournaments, matchQuery, statusFilter) {
+        val q = matchQuery.trim()
+        tournaments.filter { m ->
+            val qOk = q.isBlank() ||
+                m.title.contains(q, true) ||
+                m.game.contains(q, true) ||
+                m.mode.contains(q, true)
+            val sOk = statusFilter == "All" || m.status.equals(statusFilter, ignoreCase = true)
+            qOk && sOk
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -235,7 +254,7 @@ fun AdminTournamentEngineModule(
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                SectionHeader("Tournament & Match Engine", "${tournaments.size} matches")
+                SectionHeader("Tournament & Match Engine", "${filteredMatches.size} of ${tournaments.size} matches")
             }
             Spacer(Modifier.height(8.dp))
             NeonPrimaryButton(
@@ -252,9 +271,33 @@ fun AdminTournamentEngineModule(
                 },
                 modifier = Modifier.fillMaxWidth().testTag("admin_create_match_btn")
             )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = matchQuery,
+                onValueChange = { matchQuery = it },
+                label = { Text("Search match title, game, mode") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(6.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(listOf("All", "Upcoming", "Live", "Completed", "Cancelled")) { s ->
+                    FilterChip(
+                        selected = statusFilter == s,
+                        onClick = { statusFilter = s },
+                        label = { Text(s) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ArenaOrange,
+                            selectedLabelColor = Color.White,
+                            containerColor = ObsidianElevated
+                        )
+                    )
+                }
+            }
         }
 
-        items(tournaments, key = { it.id }) { m ->
+        items(filteredMatches, key = { it.id }) { m ->
             CyberGlassCard(glowColor = if (m.status == "live") EmeraldProfit else NeonCyan) {
                 MatchBannerImage(
                     bannerUrl = m.bannerUrl,
@@ -311,6 +354,19 @@ fun AdminTournamentEngineModule(
                                 Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(14.dp), tint = CrimsonDanger)
                                 Spacer(Modifier.width(4.dp))
                                 Text("Cancel & Refund", color = CrimsonDanger)
+                            }
+                        }
+                    }
+                    if (m.filledSlots == 0L || m.status in listOf("cancelled", "completed")) {
+                        item {
+                            OutlinedButton(
+                                onClick = { adminVm.deleteTournament(m) },
+                                enabled = !busy,
+                                modifier = Modifier.testTag("admin_delete_match_${m.id}")
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp), tint = CrimsonDanger)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Delete", color = CrimsonDanger)
                             }
                         }
                     }

@@ -122,6 +122,16 @@ class AdminViewModel(
         }
     }
 
+    fun deleteTournament(t: Tournament) {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.deleteTournament(t)
+            _busy.value = false
+            res.onSuccess { msg(true, "Match '${t.title}' deleted!") }
+                .onFailure { msg(false, it.localizedMessage ?: "Delete failed") }
+        }
+    }
+
     fun publishRoom(match: Tournament, roomId: String, roomPass: String, region: String, autoPush: Boolean) {
         viewModelScope.launch {
             _busy.value = true
@@ -234,6 +244,16 @@ class AdminViewModel(
         }
     }
 
+    fun manuallyApproveDeposit(dep: DepositOrder, utr: String, referralConfig: ReferralConfig) {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.manuallyApproveDeposit(dep, utr, referralConfig)
+            _busy.value = false
+            res.onSuccess { msg(true, it) }
+                .onFailure { msg(false, it.localizedMessage ?: "Manual approve failed") }
+        }
+    }
+
     fun saveGatewayConfig(cfg: GatewayConfig) {
         viewModelScope.launch {
             _busy.value = true
@@ -269,8 +289,30 @@ class AdminViewModel(
             _busy.value = true
             val res = adminRepo.adjustUserWallet(uid, bucket, isCredit, amount, reason)
             _busy.value = false
-            res.onSuccess { msg(true, "Wallet adjusted & logged in Audit Trail!") }
-                .onFailure { msg(false, it.localizedMessage ?: "Adjustment failed") }
+            res.onSuccess {
+                msg(true, "${if (isCredit) "Added" else "Deducted"} ${amount.toInt()} Coins (${bucket.uppercase()}) & notified user!")
+            }.onFailure { msg(false, it.localizedMessage ?: "Adjustment failed") }
+        }
+    }
+
+    fun bulkAddCoins(users: List<UserProfile>, bucket: String, amount: Double, reason: String, sendNotif: Boolean) {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.bulkAdjustCoins(users, bucket, amount, reason, sendNotif)
+            _busy.value = false
+            res.onSuccess { count ->
+                msg(true, "Airdropped ${amount.toInt()} Coins to $count active users!")
+            }.onFailure { msg(false, it.localizedMessage ?: "Bulk drop failed") }
+        }
+    }
+
+    fun updateUserDetails(uid: String, name: String, ign: String, gameUid: String, phone: String) {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.adminUpdateUserDetails(uid, name, ign, gameUid, phone)
+            _busy.value = false
+            res.onSuccess { msg(true, "Updated user profile details!") }
+                .onFailure { msg(false, it.localizedMessage ?: "Update failed") }
         }
     }
 
