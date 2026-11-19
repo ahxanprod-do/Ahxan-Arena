@@ -3,6 +3,7 @@ package com.example.data.repository
 import android.os.Build
 import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
+import com.example.data.model.GameCategory
 import com.example.data.model.GatewayConfig
 import com.example.data.model.GeneralConfig
 import com.example.data.model.LeaderboardEntry
@@ -240,6 +241,21 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
                 val fe = generateSequence(error) { it.cause }.filterIsInstance<FirebaseFirestoreException>().firstOrNull()
                 if (fe == null && error is CancellationException) throw error
                 handleFirestoreError(fe ?: error, OperationType.LIST, "cms_banners")
+                emit(emptyList())
+            }
+
+    fun observeGameCategories(): Flow<List<GameCategory>> =
+        db.collection("game_categories")
+            .snapshots()
+            .map { snap ->
+                snap.toObjects(GameCategory::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    .filter { it.active }
+                    .sortedBy { it.sortOrder }
+            }
+            .catch { error ->
+                val fe = generateSequence(error) { it.cause }.filterIsInstance<FirebaseFirestoreException>().firstOrNull()
+                if (fe == null && error is CancellationException) throw error
+                handleFirestoreError(fe ?: error, OperationType.LIST, "game_categories")
                 emit(emptyList())
             }
 

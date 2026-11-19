@@ -309,6 +309,20 @@ data class CmsBanner(
 
 @Keep
 @IgnoreExtraProperties
+data class GameCategory(
+    @DocumentId val id: String = "",
+    val title: String = "",
+    val filterKey: String = "",
+    val imageUrl: String = "",
+    val drawableKey: String = "bgmi",
+    val sortOrder: Long = 0L,
+    val active: Boolean = true,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
 data class GeneralConfig(
     @DocumentId val id: String = "",
     val tickerText: String = "WELCOME TO AHXAN ARENA • LIVE BGMI & FREE FIRE SCRIMS • INSTANT PAYZAPI DEPOSITS & WITHDRAWALS",
@@ -316,8 +330,13 @@ data class GeneralConfig(
     val maintenanceMessage: String = "Arena servers are undergoing scheduled maintenance.",
     val maintenanceEta: String = "15 mins",
     val rulesText: String = "1. Emulators & third-party hacks result in instant permanent ban.\n2. Join room 10 minutes before match start.\n3. Screenshots required for dispute resolution.",
-    val termsText: String = "All prizes are credited to Winning Wallet after match verification.",
-    val privacyText: String = "Your account and payment telemetry are protected under zero-trust security.",
+    val termsText: String = "Fair play is mandatory. Hacking, teaming, or emulator spoofing leads to permanent account suspension. All prizes are credited to Winning Wallet after match verification.",
+    val privacyText: String = "We store only your profile identity (Name, IGN, Game UID, Phone, Email) and tournament ledger securely in Google Firebase Firestore. We never sell player information to third parties.",
+    val faqText: String = "1. How do I join a match?\nAdd coins via In-App QR in My Wallet, pick a game category & match, choose your slot number, and confirm your IGN & UID.\n\n2. When do I get Room ID & Password?\n15 minutes before match start inside Match Details and My Matches.\n\n3. How are winnings redeemed?\nGo to Wallet > Redeem Coins via UPI or Binance BEP-20 USDT.",
+    val aboutUsText: String = "Ahxan Arena is a competitive esports tournament platform hosting daily BGMI, Free Fire Max, CODM, and Valorant scrims with verified slot management and instant wallet payouts.",
+    val shareMessage: String = "Join me on Ahxan Arena Esports Tournaments! Use my referral code {CODE} to get bonus coins.",
+    val supportHours: String = "Support Desk open 10:00 AM – 11:00 PM IST daily • Average reply under 15 mins.",
+    val appTagline: String = "BGMI • Free Fire MAX • COD Mobile • Valorant",
     val whatsappUrl: String = "https://wa.me/",
     val telegramUrl: String = "https://t.me/",
     val discordUrl: String = "https://discord.com/",

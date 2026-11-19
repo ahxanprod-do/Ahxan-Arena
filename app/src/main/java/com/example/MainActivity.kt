@@ -254,6 +254,7 @@ private fun AuthenticatedArenaApp(
     val withdrawals by arenaVm.withdrawals.collectAsStateWithLifecycle()
     val activeCoupons by arenaVm.activeCoupons.collectAsStateWithLifecycle()
     val banners by arenaVm.banners.collectAsStateWithLifecycle()
+    val gameCategories by arenaVm.gameCategories.collectAsStateWithLifecycle()
     val generalConfig by arenaVm.generalConfig.collectAsStateWithLifecycle()
     val gatewayConfig by arenaVm.gatewayConfig.collectAsStateWithLifecycle()
     val referralConfig by arenaVm.referralConfig.collectAsStateWithLifecycle()
@@ -443,6 +444,7 @@ private fun AuthenticatedArenaApp(
                                     banners = banners,
                                     generalConfig = generalConfig,
                                     tournaments = tournaments,
+                                    categories = gameCategories,
                                     notifications = userNotifications,
                                     broadcasts = broadcasts,
                                     onClaimCheckIn = { arenaVm.claimDailyCheckIn() },
@@ -471,6 +473,7 @@ private fun AuthenticatedArenaApp(
                                     tournaments = tournaments,
                                     joinedMatches = joinedMatches,
                                     generalConfig = generalConfig,
+                                    categories = gameCategories,
                                     selectedCategory = selectedMatchCategory,
                                     initialStatusTab = selectedStatusTab,
                                     onSelectCategory = { catKey -> selectedMatchCategory = catKey },
@@ -555,6 +558,7 @@ private fun AuthenticatedArenaApp(
                                 SupportDeskScreen(
                                     tickets = myTickets,
                                     selectedMessages = selectedTicketMessages,
+                                    generalConfig = generalConfig,
                                     busy = busy,
                                     onObserveMessages = { arenaVm.observeTicketThread(it) },
                                     onCreateTicket = { cat, subj, msg, mId, rUid, shot, done ->

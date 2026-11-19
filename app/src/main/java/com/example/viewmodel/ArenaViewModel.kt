@@ -7,6 +7,7 @@ import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
 import com.example.data.model.Coupon
 import com.example.data.model.DepositOrder
+import com.example.data.model.GameCategory
 import com.example.data.model.GatewayConfig
 import com.example.data.model.GeneralConfig
 import com.example.data.model.LeaderboardEntry
@@ -73,6 +74,9 @@ class ArenaViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val banners: StateFlow<List<CmsBanner>> = userRepo.observeBanners()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+
+    val gameCategories: StateFlow<List<GameCategory>> = userRepo.observeGameCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val generalConfig: StateFlow<GeneralConfig> = userRepo.observeGeneralConfig()

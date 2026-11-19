@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.example.data.model.BroadcastNotification
+import com.example.data.model.GameCategory
 import com.example.data.model.MatchSlot
 import com.example.data.model.PushDevice
 import com.example.data.model.SupportTicket
@@ -218,6 +219,7 @@ fun AdminNotificationStudioModule(
 fun AdminTournamentEngineModule(
     tournaments: List<Tournament>,
     roster: List<MatchSlot>,
+    categories: List<GameCategory> = emptyList(),
     busy: Boolean,
     adminVm: AdminViewModel
 ) {
@@ -414,28 +416,36 @@ fun AdminTournamentEngineModule(
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Match Title") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
+                val gameChips = remember(categories) {
+                    val defaults = listOf(
+                        "BGMI",
+                        "Free Fire MAX",
+                        "Clash Squad",
+                        "BGMI TDM",
+                        "FF Survival",
+                        "Lone Wolf",
+                        "Sniper TDM",
+                        "WOW Mode",
+                        "CS 4v4",
+                        "COD Mobile",
+                        "Valorant"
+                    )
+                    val custom = categories
+                        .map { it.filterKey.ifBlank { it.title }.trim() }
+                        .filter { it.isNotBlank() && !it.equals("All", ignoreCase = true) }
+                    (custom + defaults).distinct()
+                }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(
-                        listOf(
-                            "BGMI",
-                            "Free Fire MAX",
-                            "Clash Squad",
-                            "BGMI TDM",
-                            "FF Survival",
-                            "Lone Wolf",
-                            "Sniper TDM",
-                            "WOW Mode",
-                            "CS 4v4",
-                            "COD Mobile",
-                            "Valorant"
-                        )
-                    ) { g ->
+                    items(gameChips) { g ->
                         FilterChip(
                             selected = game == g,
                             onClick = {
                                 game = g
                                 if (bannerUrl.isBlank() && init.id.isBlank()) {
-                                    bannerKey = when {
+                                    val matchingCat = categories.firstOrNull {
+                                        it.filterKey.equals(g, ignoreCase = true) || it.title.equals(g, ignoreCase = true)
+                                    }
+                                    bannerKey = matchingCat?.drawableKey?.ifBlank { "bgmi" } ?: when {
                                         g.contains("Free", true) || g.contains("Clash", true) || g.contains("FF", true) || g.contains("CS", true) -> "freefire"
                                         g.contains("COD", true) -> "codm"
                                         g.contains("Lone", true) || g.contains("Valorant", true) -> "hero"

@@ -62,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.data.model.GeneralConfig
 import com.example.data.model.SupportTicket
 import com.example.data.model.TicketMessage
 import com.example.ui.components.SubScreenTopBar
@@ -81,6 +82,7 @@ import com.example.utils.QrCodeUtils
 fun SupportDeskScreen(
     tickets: List<SupportTicket>,
     selectedMessages: List<TicketMessage>,
+    generalConfig: GeneralConfig = GeneralConfig(),
     busy: Boolean,
     onObserveMessages: (String) -> Unit,
     onCreateTicket: (String, String, String, String, String, String, () -> Unit) -> Unit,
@@ -227,6 +229,25 @@ fun SupportDeskScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (generalConfig.supportHours.isNotBlank()) {
+                    item {
+                        Surface(
+                            color = HeaderNavy,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.55f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.SupportAgent, contentDescription = null, tint = ArenaOrange, modifier = Modifier.size(22.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(generalConfig.supportHours, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp)
+                            }
+                        }
+                    }
+                }
                 if (tickets.isEmpty()) {
                     item {
                         Surface(

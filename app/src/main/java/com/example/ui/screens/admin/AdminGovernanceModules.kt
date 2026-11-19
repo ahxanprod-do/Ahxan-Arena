@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -27,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -59,10 +61,12 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.data.model.AuditLog
 import com.example.data.model.CmsBanner
+import com.example.data.model.GameCategory
 import com.example.data.model.GeneralConfig
 import com.example.data.model.StaffRole
 import com.example.data.model.UserProfile
 import com.example.ui.components.CyberGlassCard
+import com.example.ui.components.MatchBannerImage
 import com.example.ui.components.NeonPrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.StatusPill
@@ -306,6 +310,268 @@ fun AdminStaffRolesModule(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun AdminCategoriesModule(
+    categories: List<GameCategory>,
+    busy: Boolean,
+    adminVm: AdminViewModel
+) {
+    val context = LocalContext.current
+    var editingCat by remember { mutableStateOf<GameCategory?>(null) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            SectionHeader(
+                title = "Game Categories Manager",
+                subtitle = if (categories.isEmpty()) "Using built-in defaults (load defaults to customize/delete)" else "${categories.size} live categories in Firestore"
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NeonPrimaryButton(
+                    text = "Add Category",
+                    icon = Icons.Default.Add,
+                    enabled = !busy,
+                    onClick = {
+                        editingCat = GameCategory(
+                            sortOrder = (categories.size + 1).toLong(),
+                            drawableKey = "bgmi",
+                            active = true
+                        )
+                    },
+                    modifier = Modifier.weight(1f).testTag("admin_add_category_btn")
+                )
+                OutlinedButton(
+                    onClick = { adminVm.seedDefaultCategories() },
+                    enabled = !busy,
+                    modifier = Modifier.height(50.dp).testTag("admin_seed_categories_btn")
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Load Defaults", color = AmberWarning)
+                }
+            }
+        }
+
+        if (categories.isEmpty()) {
+            item {
+                CyberGlassCard(glowColor = AmberWarning) {
+                    Text(
+                        text = "No custom categories in Firestore yet — players see the 12 default categories. Tap 'Load Defaults' to import all 12 into Firestore so you can edit images or delete any of them, or tap 'Add Category' to create your own.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                }
+            }
+        } else {
+            items(categories, key = { it.id }) { cat ->
+                CyberGlassCard(glowColor = if (cat.active) NeonCyan else CrimsonDanger) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(1.dp, NeonCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        ) {
+                            MatchBannerImage(
+                                bannerUrl = cat.imageUrl,
+                                bannerKey = cat.drawableKey,
+                                contentDescription = cat.title,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(cat.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                            Text("Filter: ${cat.filterKey} • Order: ${cat.sortOrder}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                            Spacer(Modifier.height(4.dp))
+                            StatusPill(if (cat.active) "ACTIVE" else "HIDDEN", if (cat.active) EmeraldProfit else CrimsonDanger)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            OutlinedButton(
+                                onClick = { editingCat = cat },
+                                modifier = Modifier.testTag("admin_edit_cat_${cat.id}")
+                            ) {
+                                Text("Edit", color = NeonCyan)
+                            }
+                            IconButton(
+                                onClick = { adminVm.deleteCategory(cat.id) },
+                                enabled = !busy,
+                                modifier = Modifier.testTag("admin_delete_cat_${cat.id}")
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete Category", tint = CrimsonDanger)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    editingCat?.let { init ->
+        var catTitle by remember(init.id) { mutableStateOf(init.title) }
+        var catFilter by remember(init.id) { mutableStateOf(init.filterKey) }
+        var catImageUrl by remember(init.id) { mutableStateOf(init.imageUrl) }
+        var catKey by remember(init.id) { mutableStateOf(init.drawableKey.ifBlank { "bgmi" }) }
+        var catOrderText by remember(init.id) { mutableStateOf(init.sortOrder.toString()) }
+        var catActive by remember(init.id) { mutableStateOf(init.active) }
+
+        val catPhotoPicker = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+                }.getOrNull()?.let { bmp ->
+                    catImageUrl = QrCodeUtils.compressBitmapToBase64(bmp, maxWidth = 480, quality = 65)
+                }
+            }
+        }
+
+        ModalBottomSheet(onDismissRequest = { editingCat = null }, containerColor = ObsidianSurface) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = if (init.id.isBlank()) "Add Game Category" else "Edit Game Category",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = NeonCyan
+                )
+                Spacer(Modifier.height(10.dp))
+
+                Text("Category Image Preview", style = MaterialTheme.typography.labelLarge, color = TextSecondary)
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, NeonCyan.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                ) {
+                    MatchBannerImage(
+                        bannerUrl = catImageUrl,
+                        bannerKey = catKey,
+                        contentDescription = "Category Image Preview",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(
+                        onClick = {
+                            catPhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        modifier = Modifier.weight(1f).testTag("admin_pick_cat_image_btn")
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, tint = NeonCyan)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Pick from Gallery", color = NeonCyan)
+                    }
+                    if (catImageUrl.isNotBlank()) {
+                        OutlinedButton(onClick = { catImageUrl = "" }) {
+                            Text("Reset", color = AmberWarning)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = if (catImageUrl.startsWith("http", ignoreCase = true) || catImageUrl.isBlank()) catImageUrl else "[Custom Gallery Image Uploaded]",
+                    onValueChange = { catImageUrl = it },
+                    label = { Text("Or Paste Image URL (https://...)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+                Text("Fallback Artwork Preset", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(listOf("bgmi", "freefire", "codm", "hero")) { k ->
+                        FilterChip(
+                            selected = catImageUrl.isBlank() && catKey == k,
+                            onClick = {
+                                catImageUrl = ""
+                                catKey = k
+                            },
+                            label = { Text(k.uppercase()) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = catTitle,
+                    onValueChange = { newVal ->
+                        catTitle = newVal
+                        if (init.id.isBlank() && catFilter.isBlank()) {
+                            catFilter = newVal
+                        }
+                    },
+                    label = { Text("Category Display Title (e.g. BGMI, FF MAX 2)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("admin_cat_title_input")
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = catFilter,
+                    onValueChange = { catFilter = it },
+                    label = { Text("Match Filter Key (e.g. BGMI, Free Fire MAX, All)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("admin_cat_filter_input")
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = catOrderText,
+                        onValueChange = { catOrderText = it },
+                        label = { Text("Sort Order") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Visible", color = TextPrimary)
+                        Spacer(Modifier.width(6.dp))
+                        Switch(checked = catActive, onCheckedChange = { catActive = it })
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                NeonPrimaryButton(
+                    text = if (busy) "Saving..." else "Save Category",
+                    enabled = !busy && catTitle.isNotBlank(),
+                    onClick = {
+                        adminVm.saveCategory(
+                            init.copy(
+                                title = catTitle.trim(),
+                                filterKey = catFilter.trim().ifBlank { catTitle.trim() },
+                                imageUrl = catImageUrl.trim(),
+                                drawableKey = catKey,
+                                sortOrder = catOrderText.toLongOrNull() ?: (categories.size + 1).toLong(),
+                                active = catActive
+                            )
+                        )
+                        editingCat = null
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("admin_save_cat_btn")
+                )
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun AdminCmsEngagementModule(
     generalConfig: GeneralConfig,
     banners: List<CmsBanner>,
@@ -321,13 +587,54 @@ fun AdminCmsEngagementModule(
     var checkinCsv by remember(generalConfig) { mutableStateOf(generalConfig.checkinRewards.joinToString(",")) }
     var bonusPct by remember(generalConfig) { mutableStateOf(generalConfig.bonusUsablePercent.toString()) }
     var rulesText by remember(generalConfig) { mutableStateOf(generalConfig.rulesText) }
+    var privacyText by remember(generalConfig) { mutableStateOf(generalConfig.privacyText) }
+    var termsText by remember(generalConfig) { mutableStateOf(generalConfig.termsText) }
+    var faqText by remember(generalConfig) { mutableStateOf(generalConfig.faqText) }
+    var aboutUsText by remember(generalConfig) { mutableStateOf(generalConfig.aboutUsText) }
+    var shareMessage by remember(generalConfig) { mutableStateOf(generalConfig.shareMessage) }
+    var supportHours by remember(generalConfig) { mutableStateOf(generalConfig.supportHours) }
+    var appTagline by remember(generalConfig) { mutableStateOf(generalConfig.appTagline) }
     var tgUrl by remember(generalConfig) { mutableStateOf(generalConfig.telegramUrl) }
     var dcUrl by remember(generalConfig) { mutableStateOf(generalConfig.discordUrl) }
+    var waUrl by remember(generalConfig) { mutableStateOf(generalConfig.whatsappUrl) }
+    var igUrl by remember(generalConfig) { mutableStateOf(generalConfig.instagramUrl) }
     var matchesHeroUrl by remember(generalConfig) { mutableStateOf(generalConfig.matchesHeroBannerUrl) }
     var matchesHeroKey by remember(generalConfig) { mutableStateOf(generalConfig.matchesHeroBannerKey) }
     var matchesHeroTitle by remember(generalConfig) { mutableStateOf(generalConfig.matchesHeroTitle) }
     var matchesHeroSub by remember(generalConfig) { mutableStateOf(generalConfig.matchesHeroSubtitle) }
     var editingBanner by remember { mutableStateOf<CmsBanner?>(null) }
+
+    val saveAllCms: () -> Unit = {
+        val parsedRewards = checkinCsv.split(",").mapNotNull { it.trim().toLongOrNull() }
+            .ifEmpty { listOf(5L, 8L, 10L, 12L, 15L, 20L, 50L) }
+        adminVm.saveGeneralConfig(
+            generalConfig.copy(
+                tickerText = ticker,
+                maintenanceMode = maintMode,
+                maintenanceMessage = maintMsg,
+                maintenanceEta = maintEta,
+                checkinEnabled = checkinEnabled,
+                checkinRewards = parsedRewards,
+                bonusUsablePercent = bonusPct.toLongOrNull() ?: 10L,
+                telegramUrl = tgUrl.trim(),
+                discordUrl = dcUrl.trim(),
+                whatsappUrl = waUrl.trim(),
+                instagramUrl = igUrl.trim(),
+                rulesText = rulesText,
+                privacyText = privacyText,
+                termsText = termsText,
+                faqText = faqText,
+                aboutUsText = aboutUsText,
+                shareMessage = shareMessage,
+                supportHours = supportHours,
+                appTagline = appTagline,
+                matchesHeroBannerUrl = matchesHeroUrl.trim(),
+                matchesHeroBannerKey = matchesHeroKey,
+                matchesHeroTitle = matchesHeroTitle.trim(),
+                matchesHeroSubtitle = matchesHeroSub.trim()
+            )
+        )
+    }
 
     val heroPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
@@ -344,7 +651,7 @@ fun AdminCmsEngagementModule(
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionHeader("CMS, Engagement & Maintenance") }
+        item { SectionHeader("CMS, Pages, Policies & Engagement") }
         item {
             CyberGlassCard(glowColor = ElectricViolet) {
                 SectionHeader("Matches Top Hero Image", "Shown right above all tournaments")
@@ -418,6 +725,91 @@ fun AdminCmsEngagementModule(
             }
         }
         item {
+            CyberGlassCard(glowColor = EmeraldProfit) {
+                SectionHeader("Legal & App Pages Content", "Privacy Policy, Terms, FAQ, About Us, Share & Socials")
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = privacyText,
+                    onValueChange = { privacyText = it },
+                    label = { Text("Privacy Policy") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth().testTag("cms_privacy_input")
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = termsText,
+                    onValueChange = { termsText = it },
+                    label = { Text("Terms & Conditions") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth().testTag("cms_terms_input")
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = faqText,
+                    onValueChange = { faqText = it },
+                    label = { Text("FAQ (Frequently Asked Questions)") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth().testTag("cms_faq_input")
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = aboutUsText,
+                    onValueChange = { aboutUsText = it },
+                    label = { Text("About Us Page Text") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth().testTag("cms_about_input")
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = rulesText,
+                    onValueChange = { rulesText = it },
+                    label = { Text("Default Match Rules") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = shareMessage,
+                    onValueChange = { shareMessage = it },
+                    label = { Text("Share App Message (use {CODE} placeholder)") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = supportHours,
+                    onValueChange = { supportHours = it },
+                    label = { Text("Contact Us Support Hours Note") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = appTagline,
+                    onValueChange = { appTagline = it },
+                    label = { Text("Brand Tagline") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = tgUrl, onValueChange = { tgUrl = it }, label = { Text("Telegram URL") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = dcUrl, onValueChange = { dcUrl = it }, label = { Text("Discord URL") }, modifier = Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = waUrl, onValueChange = { waUrl = it }, label = { Text("WhatsApp URL") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = igUrl, onValueChange = { igUrl = it }, label = { Text("Instagram URL") }, modifier = Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
+                NeonPrimaryButton(
+                    text = if (busy) "Saving..." else "Save Legal, Pages & Socials",
+                    accentColor = EmeraldProfit,
+                    enabled = !busy,
+                    onClick = saveAllCms,
+                    modifier = Modifier.fillMaxWidth().testTag("save_legal_pages_btn")
+                )
+            }
+        }
+        item {
             CyberGlassCard(glowColor = if (maintMode) CrimsonDanger else NeonCyan) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Global Maintenance Mode", style = MaterialTheme.typography.titleMedium, color = if (maintMode) CrimsonDanger else TextPrimary)
@@ -437,35 +829,11 @@ fun AdminCmsEngagementModule(
                     OutlinedTextField(value = checkinCsv, onValueChange = { checkinCsv = it }, label = { Text("Day 1-7 Rewards CSV") }, modifier = Modifier.weight(1.4f))
                     OutlinedTextField(value = bonusPct, onValueChange = { bonusPct = it }, label = { Text("Bonus Use %") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
                 }
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(value = tgUrl, onValueChange = { tgUrl = it }, label = { Text("Telegram URL") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = dcUrl, onValueChange = { dcUrl = it }, label = { Text("Discord URL") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = rulesText, onValueChange = { rulesText = it }, label = { Text("Global Rules Text") }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(10.dp))
                 NeonPrimaryButton(
                     text = if (busy) "Saving..." else "Save CMS & App Controls",
                     enabled = !busy,
-                    onClick = {
-                        val parsedRewards = checkinCsv.split(",").mapNotNull { it.trim().toLongOrNull() }.ifEmpty { listOf(5L, 8L, 10L, 12L, 15L, 20L, 50L) }
-                        adminVm.saveGeneralConfig(
-                            generalConfig.copy(
-                                tickerText = ticker,
-                                maintenanceMode = maintMode,
-                                maintenanceMessage = maintMsg,
-                                maintenanceEta = maintEta,
-                                checkinEnabled = checkinEnabled,
-                                checkinRewards = parsedRewards,
-                                bonusUsablePercent = bonusPct.toLongOrNull() ?: 10L,
-                                telegramUrl = tgUrl,
-                                discordUrl = dcUrl,
-                                rulesText = rulesText,
-                                matchesHeroBannerUrl = matchesHeroUrl.trim(),
-                                matchesHeroBannerKey = matchesHeroKey,
-                                matchesHeroTitle = matchesHeroTitle.trim(),
-                                matchesHeroSubtitle = matchesHeroSub.trim()
-                            )
-                        )
-                    },
+                    onClick = saveAllCms,
                     modifier = Modifier.fillMaxWidth().testTag("save_cms_controls_btn")
                 )
             }

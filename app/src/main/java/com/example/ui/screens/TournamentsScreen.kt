@@ -75,18 +75,19 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Coupon
+import com.example.data.model.GameCategory
 import com.example.data.model.GeneralConfig
 import com.example.data.model.MatchSlot
 import com.example.data.model.RoomSecret
 import com.example.data.model.Tournament
 import com.example.data.model.UserProfile
 import com.example.ui.components.CoinBadge
-import com.example.ui.components.DEFAULT_GAME_CATEGORIES
 import com.example.ui.components.GameCategoryGrid
 import com.example.ui.components.MatchBannerImage
 import com.example.ui.components.StatusPill
 import com.example.ui.components.SubScreenTopBar
 import com.example.ui.components.matchesCategoryFilter
+import com.example.ui.components.resolveGameCategories
 import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.ArenaBlue
 import com.example.ui.theme.ArenaCharcoal
@@ -108,6 +109,7 @@ fun TournamentsScreen(
     tournaments: List<Tournament>,
     joinedMatches: List<MatchSlot>,
     generalConfig: GeneralConfig = GeneralConfig(),
+    categories: List<GameCategory> = emptyList(),
     selectedCategory: String? = null,
     initialStatusTab: Int = 1,
     onSelectCategory: (String) -> Unit = {},
@@ -180,8 +182,9 @@ fun TournamentsScreen(
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
+                            val displayCategories = remember(categories) { resolveGameCategories(categories) }
                             GameCategoryGrid(
-                                categories = DEFAULT_GAME_CATEGORIES,
+                                categories = displayCategories,
                                 tournaments = tournaments,
                                 onCategoryClick = { cat -> onSelectCategory(cat.filterKey) }
                             )

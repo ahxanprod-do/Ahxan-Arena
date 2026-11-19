@@ -13,6 +13,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -101,6 +103,7 @@ import com.example.ui.theme.CardMutedText
 import com.example.ui.theme.CoinYellow
 import com.example.ui.theme.HeaderNavy
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProfileAndMoreScreen(
     user: UserProfile?,
@@ -411,7 +414,9 @@ fun ProfileAndMoreScreen(
                         icon = Icons.AutoMirrored.Filled.HelpOutline,
                         onClick = {
                             infoDialogTitle = "Frequently Asked Questions"
-                            infoDialogBody = "1. How do I join a match?\nAdd coins via In-App QR in My Wallet, pick an upcoming match, choose your slot number, and confirm your IGN & UID.\n\n2. When do I get Room ID & Password?\n15 minutes before match start inside Match Details and My Matches.\n\n3. How are winnings redeemed?\nGo to Wallet > Redeem Coins via UPI or Binance BEP-20 USDT."
+                            infoDialogBody = generalConfig.faqText.ifBlank {
+                                "1. How do I join a match?\nAdd coins via In-App QR in My Wallet, pick an upcoming match, choose your slot number, and confirm your IGN & UID.\n\n2. When do I get Room ID & Password?\n15 minutes before match start inside Match Details and My Matches.\n\n3. How are winnings redeemed?\nGo to Wallet > Redeem Coins via UPI or Binance BEP-20 USDT."
+                            }
                         }
                     )
                     MeMenuRow(
@@ -419,7 +424,9 @@ fun ProfileAndMoreScreen(
                         icon = Icons.Default.Info,
                         onClick = {
                             infoDialogTitle = "About Ahxan Arena"
-                            infoDialogBody = "Ahxan Arena is a competitive esports tournament platform hosting daily BGMI, Free Fire Max, CODM, and Valorant scrims with verified slot management and instant wallet payouts."
+                            infoDialogBody = generalConfig.aboutUsText.ifBlank {
+                                "Ahxan Arena is a competitive esports tournament platform hosting daily BGMI, Free Fire Max, CODM, and Valorant scrims with verified slot management and instant wallet payouts."
+                            }
                         }
                     )
                     MeMenuRow(
@@ -427,7 +434,9 @@ fun ProfileAndMoreScreen(
                         icon = Icons.Default.Lock,
                         onClick = {
                             infoDialogTitle = "Privacy Policy"
-                            infoDialogBody = "We store only your profile identity (Name, IGN, Game UID, Phone, Email) and tournament ledger securely in Google Firebase Firestore. We never sell player information to third parties."
+                            infoDialogBody = generalConfig.privacyText.ifBlank {
+                                "We store only your profile identity (Name, IGN, Game UID, Phone, Email) and tournament ledger securely in Google Firebase Firestore. We never sell player information to third parties."
+                            }
                         }
                     )
                     MeMenuRow(
@@ -435,8 +444,10 @@ fun ProfileAndMoreScreen(
                         icon = Icons.Default.VerifiedUser,
                         onClick = {
                             infoDialogTitle = "Terms & Conditions"
-                            infoDialogBody = generalConfig.rulesText.ifBlank {
-                                "Fair play is mandatory. Hacking, teaming, or emulator spoofing leads to permanent account suspension."
+                            infoDialogBody = generalConfig.termsText.ifBlank {
+                                generalConfig.rulesText.ifBlank {
+                                    "Fair play is mandatory. Hacking, teaming, or emulator spoofing leads to permanent account suspension."
+                                }
                             }
                         }
                     )
@@ -445,7 +456,14 @@ fun ProfileAndMoreScreen(
                         icon = Icons.Default.Share,
                         onClick = {
                             val code = user?.referralCode.orEmpty()
-                            val shareText = "Join me on Ahxan Arena Esports Tournaments! Use my referral code $code to get bonus coins."
+                            val template = generalConfig.shareMessage.ifBlank {
+                                "Join me on Ahxan Arena Esports Tournaments! Use my referral code {CODE} to get bonus coins."
+                            }
+                            val shareText = if (template.contains("{CODE}")) {
+                                template.replace("{CODE}", code)
+                            } else {
+                                "$template Referral Code: $code"
+                            }
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_TEXT, shareText)
@@ -496,9 +514,16 @@ fun ProfileAndMoreScreen(
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text(infoDialogBody, color = CardDarkText, style = MaterialTheme.typography.bodyMedium)
-                    if (infoDialogTitle == "About Us" && (generalConfig.telegramUrl.isNotBlank() || generalConfig.discordUrl.isNotBlank())) {
+                    val hasAnySocial = generalConfig.telegramUrl.isNotBlank() ||
+                        generalConfig.discordUrl.isNotBlank() ||
+                        generalConfig.whatsappUrl.isNotBlank() ||
+                        generalConfig.instagramUrl.isNotBlank()
+                    if (infoDialogTitle == "About Us" && hasAnySocial) {
                         Spacer(Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             if (generalConfig.telegramUrl.isNotBlank()) {
                                 OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(generalConfig.telegramUrl))) } }) {
                                     Text("Telegram", color = ArenaBlue)
@@ -507,6 +532,16 @@ fun ProfileAndMoreScreen(
                             if (generalConfig.discordUrl.isNotBlank()) {
                                 OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(generalConfig.discordUrl))) } }) {
                                     Text("Discord", color = ArenaPurple)
+                                }
+                            }
+                            if (generalConfig.whatsappUrl.isNotBlank()) {
+                                OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(generalConfig.whatsappUrl))) } }) {
+                                    Text("WhatsApp", color = ArenaGreen)
+                                }
+                            }
+                            if (generalConfig.instagramUrl.isNotBlank()) {
+                                OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(generalConfig.instagramUrl))) } }) {
+                                    Text("Instagram", color = ArenaOrange)
                                 }
                             }
                         }

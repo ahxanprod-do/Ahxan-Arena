@@ -7,6 +7,7 @@ import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
 import com.example.data.model.Coupon
 import com.example.data.model.DepositOrder
+import com.example.data.model.GameCategory
 import com.example.data.model.GatewayConfig
 import com.example.data.model.GeneralConfig
 import com.example.data.model.MatchSlot
@@ -56,6 +57,9 @@ class AdminViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val allBanners: StateFlow<List<CmsBanner>> = adminRepo.observeAllBanners()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+
+    val allCategories: StateFlow<List<GameCategory>> = adminRepo.observeAllCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val staffRoles: StateFlow<List<StaffRole>> = adminRepo.observeStaffRoles()
@@ -314,5 +318,35 @@ class AdminViewModel(
 
     fun deleteBanner(id: String) {
         viewModelScope.launch { adminRepo.deleteBanner(id) }
+    }
+
+    fun saveCategory(cat: GameCategory) {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.saveGameCategory(cat)
+            _busy.value = false
+            res.onSuccess { msg(true, "Category '${cat.title}' saved!") }
+                .onFailure { msg(false, it.localizedMessage ?: "Category save failed") }
+        }
+    }
+
+    fun deleteCategory(id: String) {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.deleteGameCategory(id)
+            _busy.value = false
+            res.onSuccess { msg(true, "Category deleted!") }
+                .onFailure { msg(false, it.localizedMessage ?: "Delete failed") }
+        }
+    }
+
+    fun seedDefaultCategories() {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.seedDefaultCategories()
+            _busy.value = false
+            res.onSuccess { count -> msg(true, "Loaded $count default game categories!") }
+                .onFailure { msg(false, it.localizedMessage ?: "Seed failed") }
+        }
     }
 }

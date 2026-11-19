@@ -5,6 +5,7 @@ import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
 import com.example.data.model.Coupon
 import com.example.data.model.DepositOrder
+import com.example.data.model.GameCategory
 import com.example.data.model.GatewayConfig
 import com.example.data.model.GeneralConfig
 import com.example.data.model.MatchSlot
@@ -115,6 +116,11 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
         db.collection("cms_banners").snapshots()
             .map { it.toObjects(CmsBanner::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE).sortedBy { b -> b.sortOrder } }
             .catch { handleFlowError(it, "cms_banners"); emit(emptyList()) }
+
+    fun observeAllCategories(): Flow<List<GameCategory>> =
+        db.collection("game_categories").snapshots()
+            .map { it.toObjects(GameCategory::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE).sortedBy { c -> c.sortOrder } }
+            .catch { handleFlowError(it, "game_categories"); emit(emptyList()) }
 
     fun observeStaffRoles(): Flow<List<StaffRole>> =
         db.collection("staff_roles").snapshots()
@@ -1049,6 +1055,11 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                     "rulesText" to config.rulesText,
                     "termsText" to config.termsText,
                     "privacyText" to config.privacyText,
+                    "faqText" to config.faqText,
+                    "aboutUsText" to config.aboutUsText,
+                    "shareMessage" to config.shareMessage,
+                    "supportHours" to config.supportHours,
+                    "appTagline" to config.appTagline,
                     "whatsappUrl" to config.whatsappUrl,
                     "telegramUrl" to config.telegramUrl,
                     "discordUrl" to config.discordUrl,
@@ -1063,10 +1074,114 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             ).await()
-            logAudit("UPDATE_CMS_GENERAL", "general", "Maintenance=${config.maintenanceMode}, CheckIn=${config.checkinEnabled}")
+            logAudit("UPDATE_CMS_GENERAL", "general", "Updated App CMS, Policies & Settings")
             Result.success(Unit)
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, "app_config/general")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun saveGameCategory(category: GameCategory): Result<Unit> {
+        return try {
+            require(category.title.trim().isNotEmpty()) { "Category title required" }
+            val cleanFilter = category.filterKey.trim().ifBlank { category.title.trim() }.take(60)
+            val isNew = category.id.isBlank()
+            val ref = if (isNew) {
+                db.collection("game_categories").document()
+            } else {
+                db.collection("game_categories").document(category.id)
+            }
+            if (isNew) {
+                ref.set(
+                    mapOf(
+                        "title" to category.title.trim().take(60),
+                        "filterKey" to cleanFilter,
+                        "imageUrl" to category.imageUrl.trim().take(440000),
+                        "drawableKey" to category.drawableKey.trim().ifBlank { "bgmi" }.take(40),
+                        "sortOrder" to category.sortOrder,
+                        "active" to category.active,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+                logAudit("CREATE_CATEGORY", ref.id, "Created category ${category.title.trim()}")
+            } else {
+                ref.update(
+                    mapOf(
+                        "title" to category.title.trim().take(60),
+                        "filterKey" to cleanFilter,
+                        "imageUrl" to category.imageUrl.trim().take(440000),
+                        "drawableKey" to category.drawableKey.trim().ifBlank { "bgmi" }.take(40),
+                        "sortOrder" to category.sortOrder,
+                        "active" to category.active,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+                logAudit("UPDATE_CATEGORY", ref.id, "Updated category ${category.title.trim()}")
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, "game_categories")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteGameCategory(categoryId: String): Result<Unit> {
+        return try {
+            db.collection("game_categories").document(categoryId).delete().await()
+            logAudit("DELETE_CATEGORY", categoryId, "Deleted game category")
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, "game_categories/$categoryId")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun seedDefaultCategories(): Result<Int> {
+        return try {
+            val defaults = listOf(
+                Triple("BGMI", "BGMI", "bgmi"),
+                Triple("FF MAX", "Free Fire MAX", "freefire"),
+                Triple("CS I", "Clash Squad", "freefire"),
+                Triple("BGMI TDM", "BGMI TDM", "bgmi"),
+                Triple("FF SURVIVAL", "FF Survival", "freefire"),
+                Triple("LONE WOLF", "Lone Wolf", "hero"),
+                Triple("SNIPER TDM", "Sniper TDM", "bgmi"),
+                Triple("WOW MODE", "WOW Mode", "bgmi"),
+                Triple("CS 4v4", "CS 4v4", "freefire"),
+                Triple("CODM", "COD Mobile", "codm"),
+                Triple("VALORANT", "Valorant", "hero"),
+                Triple("ALL MATCHES", "All", "hero")
+            )
+            val batch = db.batch()
+            defaults.forEachIndexed { idx, (title, key, drawKey) ->
+                val docId = "cat_${key.lowercase().replace(Regex("[^a-z0-9]"), "_")}"
+                batch.set(
+                    db.collection("game_categories").document(docId),
+                    mapOf(
+                        "title" to title,
+                        "filterKey" to key,
+                        "imageUrl" to "",
+                        "drawableKey" to drawKey,
+                        "sortOrder" to (idx + 1).toLong(),
+                        "active" to true,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }
+            batch.commit().await()
+            logAudit("SEED_CATEGORIES", "game_categories", "Seeded ${defaults.size} default categories")
+            Result.success(defaults.size)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, "game_categories")
             Result.failure(e)
         }
     }

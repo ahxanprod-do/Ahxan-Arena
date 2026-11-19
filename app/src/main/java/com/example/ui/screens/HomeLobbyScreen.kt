@@ -65,6 +65,7 @@ import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
+import com.example.data.model.GameCategory
 import com.example.data.model.GeneralConfig
 import com.example.data.model.Tournament
 import com.example.data.model.UserNotification
@@ -72,12 +73,12 @@ import com.example.data.model.UserProfile
 import com.example.notifications.ArenaNotificationHelper
 import com.example.ui.components.ArenaTopHeader
 import com.example.ui.components.CoinBadge
-import com.example.ui.components.DEFAULT_GAME_CATEGORIES
 import com.example.ui.components.GameCategoryGrid
 import com.example.ui.components.MatchBannerImage
 import com.example.ui.components.NotificationDrawerSheet
 import com.example.ui.components.StatusPill
 import com.example.ui.components.bannerDrawableForKey
+import com.example.ui.components.resolveGameCategories
 import com.example.ui.theme.ArenaBlue
 import com.example.ui.theme.ArenaCharcoal
 import com.example.ui.theme.ArenaGreen
@@ -96,6 +97,7 @@ fun HomeLobbyScreen(
     banners: List<CmsBanner>,
     generalConfig: GeneralConfig,
     tournaments: List<Tournament>,
+    categories: List<GameCategory> = emptyList(),
     notifications: List<UserNotification>,
     broadcasts: List<BroadcastNotification>,
     onClaimCheckIn: () -> Unit,
@@ -431,8 +433,9 @@ fun HomeLobbyScreen(
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold
                     )
+                    val displayCategories = remember(categories) { resolveGameCategories(categories) }
                     GameCategoryGrid(
-                        categories = DEFAULT_GAME_CATEGORIES,
+                        categories = displayCategories,
                         tournaments = tournaments,
                         onCategoryClick = { cat -> onOpenGameTournaments(cat.filterKey) }
                     )

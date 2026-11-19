@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.model.BroadcastNotification
+import com.example.data.model.GameCategory
 import com.example.data.model.Tournament
 import com.example.data.model.UserNotification
 import com.example.ui.theme.ArenaCharcoal
@@ -85,7 +86,8 @@ import com.example.utils.QrCodeUtils
 data class GameCategoryItem(
     val filterKey: String,
     val title: String,
-    val drawableKey: String
+    val drawableKey: String,
+    val imageUrl: String = ""
 )
 
 val DEFAULT_GAME_CATEGORIES = listOf(
@@ -102,6 +104,18 @@ val DEFAULT_GAME_CATEGORIES = listOf(
     GameCategoryItem("Valorant", "VALORANT", "hero"),
     GameCategoryItem("All", "ALL MATCHES", "hero")
 )
+
+fun resolveGameCategories(dbCategories: List<GameCategory>): List<GameCategoryItem> {
+    if (dbCategories.isEmpty()) return DEFAULT_GAME_CATEGORIES
+    return dbCategories.map { c ->
+        GameCategoryItem(
+            filterKey = c.filterKey.ifBlank { c.title },
+            title = c.title.ifBlank { c.filterKey },
+            drawableKey = c.drawableKey.ifBlank { "bgmi" },
+            imageUrl = c.imageUrl
+        )
+    }
+}
 
 fun matchesCategoryFilter(match: Tournament, categoryKey: String): Boolean {
     if (categoryKey.isBlank() || categoryKey.equals("All", ignoreCase = true)) return true
@@ -146,10 +160,10 @@ fun GameCategoryGrid(
                     ) {
                         Column(modifier = Modifier.fillMaxSize()) {
                             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                                Image(
-                                    painter = painterResource(id = bannerDrawableForKey(cat.drawableKey)),
+                                MatchBannerImage(
+                                    bannerUrl = cat.imageUrl,
+                                    bannerKey = cat.drawableKey,
                                     contentDescription = cat.title,
-                                    contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )
                                 if (openCount > 0) {

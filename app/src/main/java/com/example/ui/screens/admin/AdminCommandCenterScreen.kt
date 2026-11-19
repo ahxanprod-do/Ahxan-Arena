@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Group
@@ -59,6 +60,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.DepositOrder
+import com.example.data.model.GameCategory
 import com.example.data.model.StaffRole
 import com.example.data.model.SupportTicket
 import com.example.data.model.Tournament
@@ -107,6 +109,7 @@ fun AdminCommandCenterScreen(
     val coupons by adminVm.allCoupons.collectAsStateWithLifecycle()
     val referrals by adminVm.allReferrals.collectAsStateWithLifecycle()
     val allBanners by adminVm.allBanners.collectAsStateWithLifecycle()
+    val allCategories by adminVm.allCategories.collectAsStateWithLifecycle()
     val staffRoles by adminVm.staffRoles.collectAsStateWithLifecycle()
     val auditLogs by adminVm.auditLogs.collectAsStateWithLifecycle()
     val pushDevices by adminVm.pushDevices.collectAsStateWithLifecycle()
@@ -125,16 +128,17 @@ fun AdminCommandCenterScreen(
         listOf(
             AdminNavModule("dashboard", "1. Dashboard", Icons.Default.Dashboard, true),
             AdminNavModule("push", "2. Push Studio", Icons.Default.NotificationsActive, isSuperAdmin || (staffRole?.sendPush == true)),
-            AdminNavModule("matches", "3. Matches & Rooms", Icons.Default.EmojiEvents, isSuperAdmin || (staffRole?.manageMatches == true) || (staffRole?.publishRooms == true)),
-            AdminNavModule("coupons", "4. Coupons", Icons.Default.LocalOffer, isSuperAdmin || (staffRole?.manageCoupons == true)),
-            AdminNavModule("referrals", "5. Referrals", Icons.Default.CardGiftcard, isSuperAdmin || (staffRole?.manageUsers == true)),
-            AdminNavModule("tickets", "6. Support Desk", Icons.Default.SupportAgent, isSuperAdmin || (staffRole?.replyTickets == true)),
-            AdminNavModule("gateway", "7. PayZapi & Deposits", Icons.Default.Payment, isSuperAdmin || (staffRole?.verifyDeposits == true)),
-            AdminNavModule("withdrawals", "8. Withdrawals", Icons.Default.AccountBalanceWallet, isSuperAdmin || (staffRole?.approveWithdrawals == true)),
-            AdminNavModule("users", "9. Users CRM", Icons.Default.Group, isSuperAdmin || (staffRole?.manageUsers == true)),
-            AdminNavModule("staff", "10. Staff RBAC", Icons.Default.AdminPanelSettings, isSuperAdmin),
-            AdminNavModule("cms", "11. CMS & App", Icons.Default.Settings, isSuperAdmin || (staffRole?.systemSettings == true)),
-            AdminNavModule("audit", "12. Audit Logs", Icons.Default.History, isSuperAdmin || (staffRole?.systemSettings == true))
+            AdminNavModule("categories", "3. Categories", Icons.Default.Category, isSuperAdmin || (staffRole?.manageMatches == true) || (staffRole?.systemSettings == true)),
+            AdminNavModule("matches", "4. Matches & Rooms", Icons.Default.EmojiEvents, isSuperAdmin || (staffRole?.manageMatches == true) || (staffRole?.publishRooms == true)),
+            AdminNavModule("coupons", "5. Coupons", Icons.Default.LocalOffer, isSuperAdmin || (staffRole?.manageCoupons == true)),
+            AdminNavModule("referrals", "6. Referrals", Icons.Default.CardGiftcard, isSuperAdmin || (staffRole?.manageUsers == true)),
+            AdminNavModule("tickets", "7. Support Desk", Icons.Default.SupportAgent, isSuperAdmin || (staffRole?.replyTickets == true)),
+            AdminNavModule("gateway", "8. PayZapi & Deposits", Icons.Default.Payment, isSuperAdmin || (staffRole?.verifyDeposits == true)),
+            AdminNavModule("withdrawals", "9. Withdrawals", Icons.Default.AccountBalanceWallet, isSuperAdmin || (staffRole?.approveWithdrawals == true)),
+            AdminNavModule("users", "10. Users CRM", Icons.Default.Group, isSuperAdmin || (staffRole?.manageUsers == true)),
+            AdminNavModule("staff", "11. Staff RBAC", Icons.Default.AdminPanelSettings, isSuperAdmin),
+            AdminNavModule("cms", "12. CMS & Pages", Icons.Default.Settings, isSuperAdmin || (staffRole?.systemSettings == true)),
+            AdminNavModule("audit", "13. Audit Logs", Icons.Default.History, isSuperAdmin || (staffRole?.systemSettings == true))
         ).filter { it.allowed }
     }
 
@@ -199,6 +203,7 @@ fun AdminCommandCenterScreen(
                             coupons = coupons,
                             referrals = referrals,
                             banners = allBanners,
+                            categories = allCategories,
                             staffRoles = staffRoles,
                             auditLogs = auditLogs,
                             pushDevices = pushDevices,
@@ -245,6 +250,7 @@ fun AdminCommandCenterScreen(
                             coupons = coupons,
                             referrals = referrals,
                             banners = allBanners,
+                            categories = allCategories,
                             staffRoles = staffRoles,
                             auditLogs = auditLogs,
                             pushDevices = pushDevices,
@@ -276,6 +282,7 @@ private fun AdminModuleContent(
     coupons: List<com.example.data.model.Coupon>,
     referrals: List<com.example.data.model.ReferralRecord>,
     banners: List<com.example.data.model.CmsBanner>,
+    categories: List<GameCategory>,
     staffRoles: List<StaffRole>,
     auditLogs: List<com.example.data.model.AuditLog>,
     pushDevices: List<com.example.data.model.PushDevice>,
@@ -292,7 +299,8 @@ private fun AdminModuleContent(
     when (activeModule) {
         "dashboard" -> ExecutiveDashboardModule(users, deposits, withdrawals, tournaments, tickets)
         "push" -> AdminNotificationStudioModule(broadcasts, pushDevices, busy, adminVm)
-        "matches" -> AdminTournamentEngineModule(tournaments, roster, busy, adminVm)
+        "categories" -> AdminCategoriesModule(categories, busy, adminVm)
+        "matches" -> AdminTournamentEngineModule(tournaments, roster, categories, busy, adminVm)
         "coupons" -> AdminCouponsModule(coupons, busy, adminVm)
         "referrals" -> AdminReferralsModule(referralConfig, referrals, users, busy, adminVm)
         "tickets" -> AdminSupportDeskModule(tickets, users, ticketMsgs, busy, adminVm)

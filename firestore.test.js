@@ -285,3 +285,63 @@ test("SuperAdmin RBAC and immutable audit logs", async () => {
     })
   );
 });
+
+test("Admin can manage game_categories & CMS legal pages while regular users are read-only", async () => {
+  const adminDb = testEnv.authenticatedContext(ADMIN_UID, {
+    email: "ahxantalib@gmail.com",
+    email_verified: true,
+  }).firestore();
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID, {
+    email: "alice@example.com",
+    email_verified: true,
+  }).firestore();
+  const ts = pastDate(2000);
+
+  // Admin can create a game category with custom imageUrl/Base64
+  await assertSucceeds(
+    adminDb.collection("game_categories").doc("cat_tdm").set({
+      title: "BGMI TDM",
+      filterKey: "BGMI TDM",
+      imageUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+      drawableKey: "bgmi",
+      sortOrder: 1,
+      active: true,
+      createdAt: ts,
+      updatedAt: ts,
+    })
+  );
+
+  // Signed-in user can read categories, but cannot create/update/delete
+  await assertSucceeds(aliceDb.collection("game_categories").get());
+  await assertFails(
+    aliceDb.collection("game_categories").doc("cat_hack").set({
+      title: "Hack",
+      filterKey: "Hack",
+      sortOrder: 99,
+      active: true,
+      createdAt: ts,
+      updatedAt: ts,
+    })
+  );
+  await assertFails(aliceDb.collection("game_categories").doc("cat_tdm").delete());
+
+  // Admin can update Privacy Policy, Terms, FAQ, About Us in app_config/general; regular user cannot
+  await assertSucceeds(
+    adminDb.collection("app_config").doc("general").set({
+      privacyText: "Updated privacy policy text",
+      termsText: "Updated terms text",
+      faqText: "Updated FAQ",
+      aboutUsText: "Updated About Us",
+      updatedAt: ts,
+    })
+  );
+  await assertFails(
+    aliceDb.collection("app_config").doc("general").update({
+      privacyText: "Hacked privacy policy",
+      updatedAt: ts,
+    })
+  );
+
+  // Admin can delete a category
+  await assertSucceeds(adminDb.collection("game_categories").doc("cat_tdm").delete());
+});

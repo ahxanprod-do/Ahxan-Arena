@@ -400,6 +400,22 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "deviceName", "platform", "enabled", "updatedAt"]
+    },
+    "GameCategory": {
+      "title": "GameCategory",
+      "description": "Admin-managed game categories shown on Home and Matches tabs with custom images.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "filterKey": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "drawableKey": { "type": "string" },
+        "sortOrder": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "filterKey", "active", "sortOrder", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -490,6 +506,10 @@
     "/push_devices/{deviceId}": {
       "schema": { "$ref": "#/entities/PushDevice" },
       "description": "Registered push notification devices."
+    },
+    "/game_categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/GameCategory" },
+      "description": "Admin-managed eSport game categories with custom images."
     }
   }
 }

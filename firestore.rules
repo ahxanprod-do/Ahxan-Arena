@@ -331,6 +331,17 @@ service cloud.firestore {
              isValidTimestamp(data.updatedAt);
     }
 
+    function isValidGameCategory(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 60 &&
+             data.filterKey is string && data.filterKey.size() >= 1 && data.filterKey.size() <= 60 &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 450000)) &&
+             (!('drawableKey' in data) || (data.drawableKey is string && data.drawableKey.size() <= 40)) &&
+             data.sortOrder is int &&
+             data.active is bool &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
     // --- COLLECTION RULES ---
 
     match /users/{userId} {
@@ -576,6 +587,13 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create, update: if isValidId(bannerId) && isAdmin() && isValidCmsBanner(incoming());
       allow delete: if isValidId(bannerId) && isAdmin();
+    }
+
+    match /game_categories/{categoryId} {
+      allow get: if isValidId(categoryId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(categoryId) && isAdmin() && isValidGameCategory(incoming());
+      allow delete: if isValidId(categoryId) && isAdmin();
     }
 
     match /app_config/{configId} {
