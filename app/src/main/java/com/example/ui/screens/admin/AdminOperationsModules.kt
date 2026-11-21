@@ -47,6 +47,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -637,19 +638,43 @@ fun AdminTournamentEngineModule(
     }
 
     rosterMatch?.let { m ->
+        val ctx = LocalContext.current
         ModalBottomSheet(onDismissRequest = { rosterMatch = null }, containerColor = ObsidianSurface) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Text("Slot Roster • ${m.title}", style = MaterialTheme.typography.titleLarge, color = NeonCyan)
+                Text("${roster.size} joined registrations", style = MaterialTheme.typography.labelSmall, color = TextMuted)
                 Spacer(Modifier.height(10.dp))
                 if (roster.isEmpty()) {
                     Text("No players joined yet.", color = TextMuted)
                 } else {
-                    LazyColumn(modifier = Modifier.height(340.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyColumn(modifier = Modifier.height(380.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(roster, key = { it.userId }) { s ->
                             CyberGlassCard(glowColor = if (s.status == "joined") NeonCyan else CrimsonDanger) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text("#${s.slotNumber} • ${s.inGameName} (${s.gameUid})", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text("#${s.slotNumber} • ${s.inGameName}", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                                        Text("Game UID: ${s.gameUid}", style = MaterialTheme.typography.labelMedium, color = NeonCyan)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "WhatsApp: ${s.whatsappNumber.ifBlank { "Not provided" }}",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = if (s.whatsappNumber.isNotBlank()) EmeraldProfit else AmberWarning
+                                            )
+                                            if (s.whatsappNumber.isNotBlank()) {
+                                                IconButton(
+                                                    onClick = {
+                                                        ArenaFormatters.copyToClipboard(ctx, "WhatsApp", s.whatsappNumber)
+                                                        Toast.makeText(ctx, "WhatsApp copied", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy WhatsApp", tint = EmeraldProfit, modifier = Modifier.size(14.dp))
+                                                }
+                                            }
+                                        }
+                                        if (s.squadMembers.isNotEmpty()) {
+                                            Text("Squad: ${s.squadMembers.joinToString(", ")}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                                        }
                                         Text("${s.displayName} • Status: ${s.status} • Paid: ${ArenaFormatters.formatInr(s.entryPaid)}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
                                     }
                                     if (s.status == "joined") {
@@ -696,7 +721,8 @@ fun AdminTournamentEngineModule(
                     LazyColumn(modifier = Modifier.height(300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(activeSlots, key = { it.userId }) { s ->
                             CyberGlassCard {
-                                Text("#${s.slotNumber} ${s.inGameName} (${s.gameUid})", style = MaterialTheme.typography.titleMedium, color = NeonCyan)
+                                Text("#${s.slotNumber} ${s.inGameName} • UID: ${s.gameUid}", style = MaterialTheme.typography.titleMedium, color = NeonCyan)
+                                Text("WhatsApp: ${s.whatsappNumber.ifBlank { "-" }}", style = MaterialTheme.typography.labelSmall, color = EmeraldProfit)
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     OutlinedTextField(value = rankMap[s.userId].orEmpty(), onValueChange = { rankMap[s.userId] = it }, label = { Text("Rank") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
                                     OutlinedTextField(value = killsMap[s.userId].orEmpty(), onValueChange = { killsMap[s.userId] = it }, label = { Text("Kills") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))

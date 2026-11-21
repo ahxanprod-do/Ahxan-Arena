@@ -122,6 +122,7 @@ data class MatchSlot(
     val displayName: String = "",
     val inGameName: String = "",
     val gameUid: String = "",
+    val whatsappNumber: String = "",
     val squadMembers: List<String> = emptyList(),
     val slotNumber: Long = 1L,
     val entryPaid: Double = 0.0,

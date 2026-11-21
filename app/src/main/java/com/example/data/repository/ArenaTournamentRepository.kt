@@ -128,6 +128,7 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
         match: Tournament,
         inGameName: String,
         gameUid: String,
+        whatsappNumber: String,
         squadMembers: List<String>,
         couponCodeRaw: String,
         bonusUsablePercent: Long,
@@ -136,8 +137,12 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
         val uid = requireUserId()
         val cleanIgn = inGameName.trim()
         val cleanGameUid = gameUid.trim()
+        val cleanWhatsapp = whatsappNumber.trim().take(30)
         if (cleanIgn.isEmpty() || cleanGameUid.isEmpty()) {
-            return Result.failure(IllegalArgumentException("In-Game Name and Game UID are required"))
+            return Result.failure(IllegalArgumentException("Game Name (IGN) and Game UID are required"))
+        }
+        if (cleanWhatsapp.count { it.isDigit() } < 7) {
+            return Result.failure(IllegalArgumentException("Valid WhatsApp Number is required"))
         }
 
         val couponCode = couponCodeRaw.trim().uppercase()
@@ -212,6 +217,7 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
                     "displayName" to displayName,
                     "inGameName" to cleanIgn.take(60),
                     "gameUid" to cleanGameUid.take(60),
+                    "whatsappNumber" to cleanWhatsapp,
                     "squadMembers" to squadMembers.filter { it.isNotBlank() }.take(4),
                     "slotNumber" to chosenSlot,
                     "entryPaid" to payableFee,
@@ -245,6 +251,9 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
                         "winningBalance" to (winningBal - winningUsed),
                         "bonusBalance" to (bonusBal - bonusUsed),
                         "matchesPlayed" to (matchesPlayed + 1L),
+                        "inGameName" to cleanIgn.take(60),
+                        "gameUid" to cleanGameUid.take(60),
+                        "phoneNumber" to cleanWhatsapp,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 )
@@ -300,6 +309,7 @@ class ArenaTournamentRepository(private val db: FirebaseFirestore) {
                     displayName = displayName,
                     inGameName = cleanIgn,
                     gameUid = cleanGameUid,
+                    whatsappNumber = cleanWhatsapp,
                     squadMembers = squadMembers,
                     slotNumber = chosenSlot,
                     entryPaid = payableFee,

@@ -147,6 +147,7 @@ service cloud.firestore {
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 80)) &&
              data.inGameName is string && data.inGameName.size() >= 1 && data.inGameName.size() <= 60 &&
              data.gameUid is string && data.gameUid.size() >= 1 && data.gameUid.size() <= 60 &&
+             (!('whatsappNumber' in data) || (data.whatsappNumber is string && data.whatsappNumber.size() <= 30)) &&
              (!('squadMembers' in data) || (data.squadMembers is list && data.squadMembers.size() <= 5)) &&
              data.slotNumber is int && data.slotNumber >= 1 && data.slotNumber <= 500 &&
              data.entryPaid is number && data.entryPaid >= 0 &&
@@ -372,7 +373,7 @@ service cloud.firestore {
             incoming().diff(existing()).affectedKeys().hasOnly(['referredByCode', 'referredByUid', 'updatedAt']) ||
             incoming().diff(existing()).affectedKeys().hasOnly(['bonusBalance', 'streakDays', 'lastCheckInDay', 'updatedAt']) ||
             incoming().diff(existing()).affectedKeys().hasOnly(['depositBalance', 'bonusBalance', 'referralQualified', 'updatedAt']) ||
-            incoming().diff(existing()).affectedKeys().hasOnly(['depositBalance', 'winningBalance', 'bonusBalance', 'matchesPlayed', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['depositBalance', 'winningBalance', 'bonusBalance', 'matchesPlayed', 'inGameName', 'gameUid', 'phoneNumber', 'updatedAt']) ||
             incoming().diff(existing()).affectedKeys().hasOnly(['winningBalance', 'updatedAt'])
           )
         ) ||

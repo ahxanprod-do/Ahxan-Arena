@@ -320,10 +320,10 @@ fun AdminUsersCrmModule(
                     )
                 }
                 Text(
-                    text = "IGN: ${u.inGameName.ifBlank { "-" }} • UID: ${u.gameUid.ifBlank { "-" }} • Ph: ${u.phoneNumber.ifBlank { "-" }} • Matches: ${u.matchesPlayed}",
+                    text = "IGN: ${u.inGameName.ifBlank { "-" }} • Game UID: ${u.gameUid.ifBlank { "-" }} • WhatsApp: ${u.phoneNumber.ifBlank { "-" }} • Matches: ${u.matchesPlayed}",
                     style = MaterialTheme.typography.labelSmall,
                     color = TextMuted,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(10.dp))
@@ -419,7 +419,7 @@ fun AdminUsersCrmModule(
                     OutlinedTextField(value = editGameUid, onValueChange = { editGameUid = it }, label = { Text("Game UID") }, singleLine = true, modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(6.dp))
-                OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Phone Number") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("WhatsApp / Phone Number") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 NeonPrimaryButton(
                     text = if (busy) "Saving..." else "Save Player Profile",

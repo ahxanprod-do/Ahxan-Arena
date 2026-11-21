@@ -608,8 +608,8 @@ private fun AuthenticatedArenaApp(
                 navigateTo("my_matches")
             },
             onValidateCoupon = { code, fee -> arenaVm.previewMatchCoupon(code, fee) },
-            onJoinMatch = { m, ign, gUid, squad, coupon, preferredSlot, onDone ->
-                arenaVm.joinMatch(m, ign, gUid, squad, coupon, preferredSlot, onDone)
+            onJoinMatch = { m, ign, gUid, whatsapp, squad, coupon, preferredSlot, onDone ->
+                arenaVm.joinMatch(m, ign, gUid, whatsapp, squad, coupon, preferredSlot, onDone)
             },
             onDismiss = { selectedTournament = null }
         )

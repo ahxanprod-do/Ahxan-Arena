@@ -208,7 +208,10 @@ fun MyMatchesScreen(
                                     fontSize = 16.sp
                                 )
                                 Text(
-                                    text = "IGN: ${slot.inGameName} • UID: ${slot.gameUid}",
+                                    text = buildString {
+                                        append("IGN: ${slot.inGameName} • UID: ${slot.gameUid}")
+                                        if (slot.whatsappNumber.isNotBlank()) append(" • WA: ${slot.whatsappNumber}")
+                                    },
                                     color = CardMutedText,
                                     fontSize = 12.sp
                                 )

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,6 +32,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -40,6 +42,8 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -72,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -381,7 +386,7 @@ fun TournamentDetailSheet(
     onLoadParticipants: (String) -> Unit = {},
     onOpenMyMatches: () -> Unit = {},
     onValidateCoupon: suspend (String, Double) -> Result<Coupon>,
-    onJoinMatch: (Tournament, String, String, List<String>, String, Long?, () -> Unit) -> Unit,
+    onJoinMatch: (Tournament, String, String, String, List<String>, String, Long?, () -> Unit) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -392,8 +397,9 @@ fun TournamentDetailSheet(
     var selectedSlotNum by remember(match.id) { mutableStateOf<Long?>(null) }
     var participantsLoaded by remember(match.id) { mutableStateOf(false) }
 
-    var ign by remember(user) { mutableStateOf(user?.inGameName.orEmpty().ifBlank { user?.displayName.orEmpty() }) }
-    var gameUid by remember(user) { mutableStateOf(user?.gameUid.orEmpty()) }
+    var whatsappNumber by remember(user, match.id) { mutableStateOf(user?.phoneNumber.orEmpty()) }
+    var ign by remember(user, match.id) { mutableStateOf(user?.inGameName.orEmpty().ifBlank { user?.displayName.orEmpty() }) }
+    var gameUid by remember(user, match.id) { mutableStateOf(user?.gameUid.orEmpty()) }
     var teammate2 by remember { mutableStateOf("") }
     var teammate3 by remember { mutableStateOf("") }
     var teammate4 by remember { mutableStateOf("") }
@@ -434,7 +440,7 @@ fun TournamentDetailSheet(
         onDismissRequest = {
             if (currentStep == "slot_picker") currentStep = "detail" else onDismiss()
         },
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = true)
     ) {
         BackHandler {
             when (currentStep) {
@@ -445,7 +451,7 @@ fun TournamentDetailSheet(
         }
 
         if (currentStep == "slot_picker" || currentStep == "confirm_dialog") {
-            // Choose Your Match Slot Screen (matching Screenshot 155619)
+            // Choose Your Match Slot Screen (elevated action bar above system nav bar)
             val takenSlots = remember(participants, match.filledSlots) {
                 if (participants.isNotEmpty()) {
                     participants.map { it.slotNumber }.toSet()
@@ -455,6 +461,7 @@ fun TournamentDetailSheet(
             }
             val totalSlots = match.maxSlots.coerceIn(2L, 120L).toInt()
             val slotNumbers = remember(totalSlots) { (1..totalSlots).map { it.toLong() } }
+            val nextFreeSlot = remember(slotNumbers, takenSlots) { slotNumbers.firstOrNull { it !in takenSlots } }
 
             Column(
                 modifier = Modifier
@@ -462,6 +469,7 @@ fun TournamentDetailSheet(
                     .background(Color.White)
                     .statusBarsPadding()
                     .navigationBarsPadding()
+                    .imePadding()
             ) {
                 SubScreenTopBar(
                     title = "Choose your match slot",
@@ -474,7 +482,7 @@ fun TournamentDetailSheet(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.weight(1f).fillMaxWidth()
+                    modifier = Modifier.weight(1f, fill = false).fillMaxWidth()
                 ) {
                     items(slotNumbers, key = { it }) { slotNum ->
                         val isTaken = slotNum in takenSlots
@@ -533,39 +541,59 @@ fun TournamentDetailSheet(
                     }
                 }
 
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 18.dp)
+                        .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 44.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Surface(
+                        color = Color(0xFFF3E8FF),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, ArenaPurple.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Slot #${selectedSlotNum ?: nextFreeSlot ?: 1} selected • Next: Enter WhatsApp Number, Game Name & Game UID",
+                            color = ArenaPurple,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
                     Button(
                         onClick = {
                             if (selectedSlotNum == null) {
-                                val firstFree = slotNumbers.firstOrNull { it !in takenSlots }
-                                selectedSlotNum = firstFree
+                                selectedSlotNum = nextFreeSlot
                             }
                             currentStep = "confirm_dialog"
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = ArenaBlue, contentColor = Color.White),
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.fillMaxWidth().height(48.dp).testTag("slot_picker_next_btn")
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(50.dp).testTag("slot_picker_next_btn")
                     ) {
                         Text(
-                            text = if (selectedSlotNum != null) "NEXT (SLOT #$selectedSlotNum)" else "NEXT",
+                            text = if (selectedSlotNum != null) "NEXT • ENTER DETAILS (SLOT #$selectedSlotNum)" else "NEXT • ENTER DETAILS",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            fontSize = 14.sp
                         )
                     }
                 }
             }
 
             if (currentStep == "confirm_dialog") {
-                Dialog(onDismissRequest = { currentStep = "slot_picker" }) {
+                Dialog(
+                    onDismissRequest = { currentStep = "slot_picker" },
+                    properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = true)
+                ) {
                     Surface(
                         color = HeaderNavy,
                         shape = RoundedCornerShape(16.dp),
                         border = BorderStroke(1.dp, ArenaOrange.copy(alpha = 0.55f)),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 24.dp)
+                            .imePadding()
                     ) {
                         Column(
                             modifier = Modifier
@@ -574,18 +602,40 @@ fun TournamentDetailSheet(
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = "Slot #${selectedSlotNum ?: (match.filledSlots + 1)} Registration",
+                                text = "Join Match • Slot #${selectedSlotNum ?: (match.filledSlots + 1)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = CoinYellow
                             )
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Enter your WhatsApp Number, Game Name & Game UID to confirm your slot.",
+                                color = TextSecondary,
+                                fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = whatsappNumber,
+                                onValueChange = {
+                                    whatsappNumber = it
+                                    joinValidationError = null
+                                },
+                                label = { Text("WhatsApp Number *") },
+                                placeholder = { Text("e.g. 9876543210") },
+                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = ArenaGreen) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                singleLine = true,
+                                isError = joinValidationError != null && whatsappNumber.filter { c -> c.isDigit() }.length < 10,
+                                modifier = Modifier.fillMaxWidth().testTag("join_whatsapp_input")
+                            )
+                            Spacer(Modifier.height(8.dp))
                             OutlinedTextField(
                                 value = ign,
                                 onValueChange = {
                                     ign = it
                                     joinValidationError = null
                                 },
-                                label = { Text("In-Game Name (IGN) *") },
+                                label = { Text("Game Name (IGN) *") },
+                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = ArenaOrange) },
                                 singleLine = true,
                                 isError = joinValidationError != null && ign.isBlank(),
                                 modifier = Modifier.fillMaxWidth().testTag("join_ign_input")
@@ -599,7 +649,7 @@ fun TournamentDetailSheet(
                                 },
                                 label = { Text("Game UID / Character ID *") },
                                 singleLine = true,
-                                isError = joinValidationError != null && gameUid.isBlank(),
+                                isError = joinValidationError != null && gameUid.trim().length < 3,
                                 modifier = Modifier.fillMaxWidth().testTag("join_uid_input")
                             )
                             if (match.mode == "Duo" || match.mode == "Squad") {
@@ -678,21 +728,25 @@ fun TournamentDetailSheet(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
                                     onClick = { currentStep = "slot_picker" },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f).height(48.dp)
                                 ) {
                                     Text("Back", color = TextSecondary)
                                 }
                                 Button(
                                     onClick = {
+                                        val cleanWa = whatsappNumber.trim()
+                                        val waDigits = cleanWa.count { it.isDigit() }
                                         when {
-                                            ign.trim().isBlank() -> joinValidationError = "In-Game Name (IGN) is required."
-                                            gameUid.trim().length < 3 -> joinValidationError = "Valid Game UID is required."
+                                            waDigits < 10 -> joinValidationError = "Valid WhatsApp Number (min 10 digits) is required."
+                                            ign.trim().isBlank() -> joinValidationError = "Game Name (IGN) is required."
+                                            gameUid.trim().length < 3 -> joinValidationError = "Valid Game UID (min 3 characters) is required."
                                             else -> {
                                                 joinValidationError = null
                                                 onJoinMatch(
                                                     match,
                                                     ign.trim(),
                                                     gameUid.trim(),
+                                                    cleanWa,
                                                     listOf(teammate2, teammate3, teammate4).filter { it.isNotBlank() },
                                                     appliedCoupon?.code ?: "",
                                                     selectedSlotNum,
@@ -703,9 +757,12 @@ fun TournamentDetailSheet(
                                     },
                                     enabled = !busy,
                                     colors = ButtonDefaults.buttonColors(containerColor = ArenaGreen, contentColor = Color.White),
-                                    modifier = Modifier.weight(1.4f).testTag("confirm_join_match_btn")
+                                    modifier = Modifier.weight(1.5f).height(48.dp).testTag("confirm_join_match_btn")
                                 ) {
-                                    Text(if (busy) "Joining..." else "Pay ${finalFee.toLong()} Coins", fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = if (busy) "Joining..." else if (finalFee <= 0.0) "JOIN FREE" else "Pay ${finalFee.toLong()} Coins",
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -713,7 +770,7 @@ fun TournamentDetailSheet(
                 }
             }
         } else {
-            // Match Detail View (with safe system bar insets + inline Join button + sticky bottom bar)
+            // Match Detail View (with safe system bar insets + inline Join button + elevated sticky bottom bar)
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -993,11 +1050,13 @@ fun TournamentDetailSheet(
                     }
                 }
 
-                // Sticky Bottom Split Action Bar (Green MY ENTRIES | Blue JOIN NOW)
+                // Sticky Bottom Split Action Bar (lifted safely above 3-button nav bar)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 18.dp)
+                        .height(50.dp)
+                        .clip(RoundedCornerShape(10.dp))
                 ) {
                     Box(
                         modifier = Modifier
