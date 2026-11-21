@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import com.example.data.model.AppUpdateConfig
 import com.example.data.model.AuditLog
 import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
@@ -140,6 +141,7 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
     private fun handleFlowError(error: Throwable, path: String) {
         val fe = generateSequence(error) { it.cause }.filterIsInstance<FirebaseFirestoreException>().firstOrNull()
         if (fe == null && error is CancellationException) throw error
+        if (fe?.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) return
         handleFirestoreError(fe ?: error, OperationType.LIST, path)
     }
 
@@ -1439,6 +1441,39 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
             Result.success(Unit)
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.WRITE, "app_config/general")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun saveAppUpdateConfig(config: AppUpdateConfig): Result<Unit> {
+        return try {
+            val cleanUrl = config.updateDownloadUrl.trim().take(1000)
+            if (config.forceUpdateEnabled) {
+                require(cleanUrl.isNotEmpty()) { "Update download link required when Force Update is ON" }
+                require(config.latestVersionCode >= 1L) { "Version code must be >= 1" }
+            }
+            db.collection("app_config").document("update").set(
+                mapOf(
+                    "forceUpdateEnabled" to config.forceUpdateEnabled,
+                    "latestVersionCode" to config.latestVersionCode,
+                    "latestVersionName" to config.latestVersionName.trim().ifBlank { "1.0" }.take(30),
+                    "updateDownloadUrl" to cleanUrl,
+                    "releaseNotes" to config.releaseNotes.trim().take(1000),
+                    "updatedBy" to adminEmail(),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            logAudit(
+                actionType = "PUBLISH_APP_UPDATE",
+                targetId = "update",
+                summary = "ForceUpdate=${config.forceUpdateEnabled} • v${config.latestVersionName} (${config.latestVersionCode})",
+                newVal = cleanUrl
+            )
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, "app_config/update")
             Result.failure(e)
         }
     }

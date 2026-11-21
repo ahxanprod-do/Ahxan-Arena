@@ -36,9 +36,20 @@ service cloud.firestore {
         request.auth.token.email == 'ahxantalib@gmail.com';
     }
 
-    function isAdmin() {
+    function isStaff() {
+      return isSignedIn() && exists(/databases/$(database)/documents/staff_roles/$(request.auth.uid));
+    }
+
+    function hasPerm(perm) {
       return isSuperAdmin() ||
-        (isSignedIn() && exists(/databases/$(database)/documents/staff_roles/$(request.auth.uid)));
+        (isStaff() && get(/databases/$(database)/documents/staff_roles/$(request.auth.uid)).data[perm] == true);
+    }
+
+    function isAnyActiveStaff() {
+      return isSuperAdmin() ||
+        hasPerm('manageMatches') || hasPerm('publishRooms') || hasPerm('verifyDeposits') ||
+        hasPerm('approveWithdrawals') || hasPerm('manageCoupons') || hasPerm('replyTickets') ||
+        hasPerm('sendPush') || hasPerm('manageUsers') || hasPerm('systemSettings');
     }
 
     function isValidTimestamp(ts) {
@@ -311,6 +322,15 @@ service cloud.firestore {
              data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
              (!('name' in data) || (data.name is string && data.name.size() <= 80)) &&
              data.roleLabel is string && data.roleLabel.size() >= 2 && data.roleLabel.size() <= 40 &&
+             data.manageMatches is bool &&
+             data.publishRooms is bool &&
+             data.verifyDeposits is bool &&
+             data.approveWithdrawals is bool &&
+             data.manageCoupons is bool &&
+             data.replyTickets is bool &&
+             data.sendPush is bool &&
+             data.manageUsers is bool &&
+             data.systemSettings is bool &&
              isValidTimestamp(data.createdAt) &&
              isValidTimestamp(data.updatedAt);
     }
@@ -348,8 +368,12 @@ service cloud.firestore {
     // --- COLLECTION RULES ---
 
     match /users/{userId} {
-      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
-      allow list: if isAdmin();
+      allow get: if isValidId(userId) && (
+        isOwner(userId) ||
+        hasPerm('manageUsers') || hasPerm('verifyDeposits') ||
+        hasPerm('approveWithdrawals') || hasPerm('manageMatches') || hasPerm('replyTickets')
+      );
+      allow list: if hasPerm('manageUsers');
 
       allow create: if isValidId(userId) &&
                        isOwner(userId) &&
@@ -361,7 +385,10 @@ service cloud.firestore {
                        (incoming().role == 'user' || (isSuperAdmin() && incoming().role == 'admin'));
 
       allow update: if isValidId(userId) && isSignedIn() && isValidUser(incoming()) && (
-        isAdmin() ||
+        hasPerm('manageUsers') ||
+        hasPerm('verifyDeposits') ||
+        hasPerm('approveWithdrawals') ||
+        hasPerm('manageMatches') ||
         (
           isOwner(userId) &&
           incoming().userId == existing().userId &&
@@ -395,52 +422,60 @@ service cloud.firestore {
       allow delete: if isValidId(userId) && isSuperAdmin();
 
       match /transactions/{txId} {
-        allow get: if isValidId(txId) && isSignedIn() && (isOwner(userId) || isAdmin());
-        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
-        allow create: if isValidId(txId) && isSignedIn() && isValidTransaction(incoming()) && (isOwner(userId) || isAdmin());
-        allow update, delete: if isValidId(txId) && isAdmin();
+        allow get: if isValidId(txId) && isSignedIn() && (isOwner(userId) || hasPerm('manageUsers'));
+        allow list: if isSignedIn() && (isOwner(userId) || hasPerm('manageUsers'));
+        allow create: if isValidId(txId) && isSignedIn() && isValidTransaction(incoming()) && (
+          isOwner(userId) || hasPerm('manageUsers') || hasPerm('verifyDeposits') ||
+          hasPerm('approveWithdrawals') || hasPerm('manageMatches')
+        );
+        allow update, delete: if isValidId(txId) && hasPerm('manageUsers');
       }
 
       match /joined_matches/{matchId} {
-        allow get: if isValidId(matchId) && isSignedIn() && (isOwner(userId) || isAdmin());
-        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
-        allow create: if isValidId(matchId) && isSignedIn() && isValidSlot(incoming()) && (isOwner(userId) || isAdmin());
-        allow update: if isValidId(matchId) && isSignedIn() && isValidSlot(incoming()) && isAdmin();
-        allow delete: if isValidId(matchId) && isAdmin();
+        allow get: if isValidId(matchId) && isSignedIn() && (isOwner(userId) || hasPerm('manageMatches') || hasPerm('publishRooms'));
+        allow list: if isSignedIn() && (isOwner(userId) || hasPerm('manageMatches') || hasPerm('publishRooms'));
+        allow create: if isValidId(matchId) && isSignedIn() && isValidSlot(incoming()) && (isOwner(userId) || hasPerm('manageMatches'));
+        allow update: if isValidId(matchId) && isSignedIn() && isValidSlot(incoming()) && hasPerm('manageMatches');
+        allow delete: if isValidId(matchId) && hasPerm('manageMatches');
       }
 
       match /notifications/{notifId} {
-        allow get: if isValidId(notifId) && isSignedIn() && (isOwner(userId) || isAdmin());
-        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
-        allow create: if isValidId(notifId) && isSignedIn() && isValidUserNotification(incoming()) && (isOwner(userId) || isAdmin());
+        allow get: if isValidId(notifId) && isSignedIn() && (isOwner(userId) || hasPerm('sendPush') || hasPerm('manageUsers'));
+        allow list: if isSignedIn() && (isOwner(userId) || hasPerm('sendPush') || hasPerm('manageUsers'));
+        allow create: if isValidId(notifId) && isSignedIn() && isValidUserNotification(incoming()) && (isOwner(userId) || isAnyActiveStaff());
         allow update: if isValidId(notifId) && isSignedIn() && isValidUserNotification(incoming()) && (
-          isAdmin() ||
+          hasPerm('sendPush') ||
           (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['read']))
         );
-        allow delete: if isValidId(notifId) && (isOwner(userId) || isAdmin());
+        allow delete: if isValidId(notifId) && (isOwner(userId) || hasPerm('sendPush'));
       }
     }
 
     match /leaderboard/{userId} {
       allow get: if isValidId(userId) && isSignedIn();
       allow list: if isSignedIn();
-      allow create, update: if isValidId(userId) && isSignedIn() && isValidLeaderboard(incoming()) && (isOwner(userId) || isAdmin());
-      allow delete: if isValidId(userId) && isAdmin();
+      allow create, update: if isValidId(userId) && isSignedIn() && isValidLeaderboard(incoming()) && (isOwner(userId) || hasPerm('manageMatches'));
+      allow delete: if isValidId(userId) && isSuperAdmin();
     }
 
     match /referral_codes/{code} {
       allow get: if isValidId(code) && isSignedIn();
-      allow list: if isAdmin();
-      allow create: if isValidId(code) && isSignedIn() && isValidReferralCode(incoming()) && (incoming().ownerUid == request.auth.uid || isAdmin());
-      allow update, delete: if isValidId(code) && isAdmin();
+      allow list: if hasPerm('manageUsers');
+      allow create: if isValidId(code) && isSignedIn() && isValidReferralCode(incoming()) && (incoming().ownerUid == request.auth.uid || hasPerm('manageUsers'));
+      allow update, delete: if isValidId(code) && hasPerm('manageUsers');
     }
 
     match /tournaments/{matchId} {
       allow get: if isValidId(matchId) && isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isValidId(matchId) && isAdmin() && isValidTournament(incoming());
+      allow create: if isValidId(matchId) && hasPerm('manageMatches') && isValidTournament(incoming());
       allow update: if isValidId(matchId) && isSignedIn() && isValidTournament(incoming()) && (
-        isAdmin() ||
+        hasPerm('manageMatches') ||
+        (
+          hasPerm('publishRooms') &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['roomPublished', 'status', 'updatedAt'])
+        ) ||
         (
           incoming().createdAt == existing().createdAt &&
           incoming().diff(existing()).affectedKeys().hasOnly(['filledSlots', 'updatedAt']) &&
@@ -449,35 +484,37 @@ service cloud.firestore {
           existing().status == 'upcoming'
         )
       );
-      allow delete: if isValidId(matchId) && isAdmin();
+      allow delete: if isValidId(matchId) && hasPerm('manageMatches');
 
       match /secrets/{secretId} {
         allow get: if isValidId(secretId) && isSignedIn() && (
-          isAdmin() ||
+          hasPerm('publishRooms') ||
+          hasPerm('manageMatches') ||
           exists(/databases/$(database)/documents/tournaments/$(matchId)/slots/$(request.auth.uid))
         );
-        allow list: if isAdmin();
-        allow create, update: if isValidId(secretId) && isAdmin() && isValidRoomSecret(incoming());
-        allow delete: if isValidId(secretId) && isAdmin();
+        allow list: if hasPerm('publishRooms') || hasPerm('manageMatches');
+        allow create, update, delete: if isValidId(secretId) && (hasPerm('publishRooms') || hasPerm('manageMatches')) && (
+          request.method == 'delete' || isValidRoomSecret(incoming())
+        );
       }
 
       match /slots/{slotUserId} {
         allow get: if isValidId(slotUserId) && isSignedIn();
         allow list: if isSignedIn();
-        allow create: if isValidId(slotUserId) && isSignedIn() && isValidSlot(incoming()) && (isOwner(slotUserId) || isAdmin());
-        allow update: if isValidId(slotUserId) && isAdmin() && isValidSlot(incoming());
-        allow delete: if isValidId(slotUserId) && isAdmin();
+        allow create: if isValidId(slotUserId) && isSignedIn() && isValidSlot(incoming()) && (isOwner(slotUserId) || hasPerm('manageMatches'));
+        allow update: if isValidId(slotUserId) && hasPerm('manageMatches') && isValidSlot(incoming());
+        allow delete: if isValidId(slotUserId) && hasPerm('manageMatches');
       }
     }
 
     match /deposits/{depositId} {
-      allow get: if isValidId(depositId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow get: if isValidId(depositId) && isSignedIn() && (existing().userId == request.auth.uid || hasPerm('verifyDeposits'));
+      allow list: if isSignedIn() && (hasPerm('verifyDeposits') || resource.data.userId == request.auth.uid);
       allow create: if isValidId(depositId) && isSignedIn() && isValidDeposit(incoming()) &&
                        incoming().userId == request.auth.uid &&
                        incoming().status == 'pending';
       allow update: if isValidId(depositId) && isSignedIn() && isValidDeposit(incoming()) && (
-        isAdmin() ||
+        hasPerm('verifyDeposits') ||
         (
           existing().userId == request.auth.uid &&
           existing().status == 'pending' &&
@@ -487,26 +524,26 @@ service cloud.firestore {
           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'utr', 'promoBonusCredited', 'paidAtMillis', 'updatedAt'])
         )
       );
-      allow delete: if isValidId(depositId) && isAdmin();
+      allow delete: if isValidId(depositId) && isSuperAdmin();
     }
 
     match /withdrawals/{withdrawalId} {
-      allow get: if isValidId(withdrawalId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow get: if isValidId(withdrawalId) && isSignedIn() && (existing().userId == request.auth.uid || hasPerm('approveWithdrawals'));
+      allow list: if isSignedIn() && (hasPerm('approveWithdrawals') || resource.data.userId == request.auth.uid);
       allow create: if isValidId(withdrawalId) && isSignedIn() && isValidWithdrawal(incoming()) &&
                        incoming().userId == request.auth.uid &&
                        incoming().status == 'pending';
-      allow update: if isValidId(withdrawalId) && isAdmin() && isValidWithdrawal(incoming()) &&
+      allow update: if isValidId(withdrawalId) && hasPerm('approveWithdrawals') && isValidWithdrawal(incoming()) &&
                        existing().status == 'pending';
-      allow delete: if isValidId(withdrawalId) && isAdmin();
+      allow delete: if isValidId(withdrawalId) && isSuperAdmin();
     }
 
     match /coupons/{code} {
       allow get: if isValidId(code) && isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isValidId(code) && isAdmin() && isValidCoupon(incoming());
+      allow create: if isValidId(code) && hasPerm('manageCoupons') && isValidCoupon(incoming());
       allow update: if isValidId(code) && isSignedIn() && isValidCoupon(incoming()) && (
-        isAdmin() ||
+        hasPerm('manageCoupons') ||
         (
           incoming().createdAt == existing().createdAt &&
           incoming().diff(existing()).affectedKeys().hasOnly(['usedCount', 'totalDiscountGiven', 'updatedAt']) &&
@@ -514,14 +551,14 @@ service cloud.firestore {
           incoming().usedCount <= existing().maxGlobalUses
         )
       );
-      allow delete: if isValidId(code) && isAdmin();
+      allow delete: if isValidId(code) && hasPerm('manageCoupons');
 
       match /redemptions/{redemptionId} {
-        allow get: if isValidId(redemptionId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
-        allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+        allow get: if isValidId(redemptionId) && isSignedIn() && (existing().userId == request.auth.uid || hasPerm('manageCoupons'));
+        allow list: if isSignedIn() && (hasPerm('manageCoupons') || resource.data.userId == request.auth.uid);
         allow create: if isValidId(redemptionId) && isSignedIn() && isValidCouponRedemption(incoming()) &&
                          incoming().userId == request.auth.uid;
-        allow update, delete: if isValidId(redemptionId) && isAdmin();
+        allow update, delete: if isValidId(redemptionId) && hasPerm('manageCoupons');
       }
     }
 
@@ -529,29 +566,31 @@ service cloud.firestore {
       allow get: if isValidId(referralId) && isSignedIn() && (
         existing().referrerUid == request.auth.uid ||
         existing().referredUid == request.auth.uid ||
-        isAdmin()
+        hasPerm('manageUsers') ||
+        hasPerm('verifyDeposits')
       );
       allow list: if isSignedIn() && (
-        isAdmin() ||
+        hasPerm('manageUsers') ||
+        hasPerm('verifyDeposits') ||
         resource.data.referrerUid == request.auth.uid ||
         resource.data.referredUid == request.auth.uid
       );
       allow create: if isValidId(referralId) && isSignedIn() && isValidReferralRecord(incoming()) && (
-        isAdmin() ||
+        hasPerm('manageUsers') ||
         (referralId == request.auth.uid && incoming().referredUid == request.auth.uid)
       );
-      allow update: if isValidId(referralId) && isAdmin() && isValidReferralRecord(incoming());
-      allow delete: if isValidId(referralId) && isAdmin();
+      allow update: if isValidId(referralId) && (hasPerm('manageUsers') || hasPerm('verifyDeposits')) && isValidReferralRecord(incoming());
+      allow delete: if isValidId(referralId) && isSuperAdmin();
     }
 
     match /tickets/{ticketId} {
-      allow get: if isValidId(ticketId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow get: if isValidId(ticketId) && isSignedIn() && (existing().userId == request.auth.uid || hasPerm('replyTickets'));
+      allow list: if isSignedIn() && (hasPerm('replyTickets') || resource.data.userId == request.auth.uid);
       allow create: if isValidId(ticketId) && isSignedIn() && isValidTicket(incoming()) &&
                        incoming().userId == request.auth.uid &&
                        incoming().status == 'open';
       allow update: if isValidId(ticketId) && isSignedIn() && isValidTicket(incoming()) && (
-        isAdmin() ||
+        hasPerm('replyTickets') ||
         (
           existing().userId == request.auth.uid &&
           incoming().userId == existing().userId &&
@@ -559,71 +598,75 @@ service cloud.firestore {
           incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt'])
         )
       );
-      allow delete: if isValidId(ticketId) && isAdmin();
+      allow delete: if isValidId(ticketId) && isSuperAdmin();
 
       match /messages/{msgId} {
         allow get, list: if isSignedIn() && (
-          isAdmin() ||
+          hasPerm('replyTickets') ||
           get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid
         );
         allow create: if isValidId(msgId) && isSignedIn() && isValidTicketMessage(incoming()) && (
-          isAdmin() ||
+          hasPerm('replyTickets') ||
           (
             get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid &&
             incoming().senderUid == request.auth.uid &&
             incoming().senderRole == 'user'
           )
         );
-        allow update, delete: if isValidId(msgId) && isAdmin();
+        allow update, delete: if isValidId(msgId) && hasPerm('replyTickets');
       }
     }
 
     match /broadcasts/{broadcastId} {
       allow get: if isValidId(broadcastId) && isSignedIn();
       allow list: if isSignedIn();
-      allow create, update: if isValidId(broadcastId) && isAdmin() && isValidBroadcast(incoming());
-      allow delete: if isValidId(broadcastId) && isAdmin();
+      allow create, update: if isValidId(broadcastId) && hasPerm('sendPush') && isValidBroadcast(incoming());
+      allow delete: if isValidId(broadcastId) && hasPerm('sendPush');
     }
 
     match /cms_banners/{bannerId} {
       allow get: if isValidId(bannerId) && isSignedIn();
       allow list: if isSignedIn();
-      allow create, update: if isValidId(bannerId) && isAdmin() && isValidCmsBanner(incoming());
-      allow delete: if isValidId(bannerId) && isAdmin();
+      allow create, update: if isValidId(bannerId) && hasPerm('systemSettings') && isValidCmsBanner(incoming());
+      allow delete: if isValidId(bannerId) && hasPerm('systemSettings');
     }
 
     match /game_categories/{categoryId} {
       allow get: if isValidId(categoryId) && isSignedIn();
       allow list: if isSignedIn();
-      allow create, update: if isValidId(categoryId) && isAdmin() && isValidGameCategory(incoming());
-      allow delete: if isValidId(categoryId) && isAdmin();
+      allow create, update: if isValidId(categoryId) && (hasPerm('manageMatches') || hasPerm('systemSettings')) && isValidGameCategory(incoming());
+      allow delete: if isValidId(categoryId) && (hasPerm('manageMatches') || hasPerm('systemSettings'));
     }
 
     match /app_config/{configId} {
-      allow get: if isValidId(configId) && isSignedIn();
+      allow get: if isValidId(configId) && (configId == 'update' || isSignedIn());
       allow list: if isSignedIn();
-      allow create, update, delete: if isValidId(configId) && isAdmin();
+      allow create, update, delete: if isValidId(configId) && (
+        (configId == 'gateway' && (hasPerm('verifyDeposits') || hasPerm('approveWithdrawals') || hasPerm('systemSettings'))) ||
+        (configId == 'referral' && (hasPerm('manageUsers') || hasPerm('systemSettings'))) ||
+        hasPerm('systemSettings')
+      );
     }
 
     match /staff_roles/{uid} {
-      allow get: if isValidId(uid) && isSignedIn() && (isOwner(uid) || isAdmin());
-      allow list: if isAdmin();
+      allow get: if isValidId(uid) && isSignedIn() && (isOwner(uid) || isSuperAdmin());
+      allow list: if isSuperAdmin();
       allow create, update: if isValidId(uid) && isSuperAdmin() && isValidStaffRole(incoming());
       allow delete: if isValidId(uid) && isSuperAdmin();
     }
 
     match /audit_logs/{logId} {
-      allow get: if isValidId(logId) && isAdmin();
-      allow list: if isAdmin();
-      allow create: if isValidId(logId) && isAdmin() && isValidAuditLog(incoming());
+      allow get: if isValidId(logId) && hasPerm('systemSettings');
+      allow list: if hasPerm('systemSettings');
+      allow create: if isValidId(logId) && isAnyActiveStaff() && isValidAuditLog(incoming());
       allow update, delete: if false;
     }
 
     match /push_devices/{deviceId} {
-      allow get: if isValidId(deviceId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow get: if isValidId(deviceId) && isSignedIn() && (existing().userId == request.auth.uid || hasPerm('sendPush'));
+      allow list: if isSignedIn() && (hasPerm('sendPush') || resource.data.userId == request.auth.uid);
       allow create, update: if isValidId(deviceId) && isSignedIn() && incoming().userId == request.auth.uid && isValidPushDevice(incoming());
-      allow delete: if isValidId(deviceId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow delete: if isValidId(deviceId) && isSignedIn() && (existing().userId == request.auth.uid || hasPerm('sendPush'));
     }
   }
 }

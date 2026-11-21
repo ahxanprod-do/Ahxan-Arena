@@ -3,6 +3,7 @@ package com.example.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.model.AppUpdateConfig
 import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
 import com.example.data.model.Coupon
@@ -87,6 +88,9 @@ class ArenaViewModel(
 
     val referralConfig: StateFlow<ReferralConfig> = userRepo.observeReferralConfig()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), ReferralConfig())
+
+    val appUpdateConfig: StateFlow<AppUpdateConfig> = userRepo.observeAppUpdateConfig()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), AppUpdateConfig())
 
     val leaderboard: StateFlow<List<LeaderboardEntry>> = userRepo.observeLeaderboard()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())

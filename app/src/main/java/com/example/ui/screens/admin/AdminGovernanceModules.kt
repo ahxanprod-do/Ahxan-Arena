@@ -1,6 +1,9 @@
 package com.example.ui.screens.admin
 
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,7 +43,9 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,6 +80,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.BuildConfig
+import com.example.data.model.AppUpdateConfig
 import com.example.data.model.AuditLog
 import com.example.data.model.CmsBanner
 import com.example.data.model.GameCategory
@@ -845,6 +852,7 @@ fun AdminStaffRolesModule(
             }
         }
         items(roles, key = { it.userId }) { r ->
+            val granted = r.grantedPermissionLabels()
             CyberGlassCard(glowColor = ElectricViolet) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -857,6 +865,20 @@ fun AdminStaffRolesModule(
                             IconButton(onClick = { adminVm.removeStaffRole(r.userId) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove Role", tint = CrimsonDanger)
                             }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (granted.isEmpty()) {
+                        StatusPill("No Permissions Enabled", CrimsonDanger)
+                    } else {
+                        granted.forEach { label ->
+                            StatusPill(label, NeonCyan)
                         }
                     }
                 }
@@ -879,9 +901,16 @@ fun AdminStaffRolesModule(
         var pUsers by remember(init.userId) { mutableStateOf(init.manageUsers) }
         var pSettings by remember(init.userId) { mutableStateOf(init.systemSettings) }
 
+        val anySelected = pMatches || pRooms || pDeposits || pWithdraws || pCoupons || pTickets || pPush || pUsers || pSettings
+
         ModalBottomSheet(onDismissRequest = { editingRole = null }, containerColor = ObsidianSurface) {
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
                 Text("Configure Staff Permissions", style = MaterialTheme.typography.headlineSmall, color = ElectricViolet)
+                Text(
+                    "Staff will ONLY see and access the exact switches enabled below.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted
+                )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = uid, onValueChange = { uid = it }, label = { Text("Firebase User UID") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
@@ -900,25 +929,33 @@ fun AdminStaffRolesModule(
                     "Manage Coupons" to (pCoupons to { v: Boolean -> pCoupons = v }),
                     "Reply Support Tickets" to (pTickets to { v: Boolean -> pTickets = v }),
                     "Send Push Broadcasts" to (pPush to { v: Boolean -> pPush = v }),
-                    "Manage Users & Bans" to (pUsers to { v: Boolean -> pUsers = v }),
-                    "CMS & System Settings" to (pSettings to { v: Boolean -> pSettings = v })
+                    "Manage Users & Coins" to (pUsers to { v: Boolean -> pUsers = v }),
+                    "CMS, New Update & Settings" to (pSettings to { v: Boolean -> pSettings = v })
                 ).forEach { (title, pair) ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(title, color = TextPrimary)
                         Switch(checked = pair.first, onCheckedChange = pair.second)
                     }
                 }
+                if (!anySelected) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Turn ON at least one permission switch for this staff member to enter Admin Hub.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AmberWarning
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
                 NeonPrimaryButton(
                     text = if (busy) "Saving..." else "Save Staff Role",
-                    enabled = !busy && uid.isNotBlank() && email.isNotBlank(),
+                    enabled = !busy && uid.trim().isNotBlank() && email.trim().isNotBlank(),
                     onClick = {
                         adminVm.saveStaffRole(
                             StaffRole(
-                                userId = uid,
-                                email = email,
-                                name = name,
-                                roleLabel = label,
+                                userId = uid.trim(),
+                                email = email.trim(),
+                                name = name.trim(),
+                                roleLabel = label.trim().ifBlank { "Moderator" },
                                 manageMatches = pMatches,
                                 publishRooms = pRooms,
                                 verifyDeposits = pDeposits,
@@ -1554,6 +1591,240 @@ fun AdminAuditLogsModule(logs: List<AuditLog>) {
                 Text(log.summary, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
                 if (log.oldValue.isNotBlank() || log.newValue.isNotBlank()) {
                     Text("${log.oldValue} -> ${log.newValue}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminAppUpdateModule(
+    config: AppUpdateConfig,
+    busy: Boolean,
+    adminVm: AdminViewModel
+) {
+    val context = LocalContext.current
+    val currentCode = BuildConfig.VERSION_CODE
+    val currentName = BuildConfig.VERSION_NAME
+
+    var forceEnabled by remember(config) { mutableStateOf(config.forceUpdateEnabled) }
+    var versionCodeText by remember(config) {
+        mutableStateOf(
+            (if (config.latestVersionCode > currentCode.toLong()) config.latestVersionCode else (currentCode + 1).toLong()).toString()
+        )
+    }
+    var versionNameText by remember(config) {
+        mutableStateOf(
+            config.latestVersionName.takeIf { it.isNotBlank() && it != currentName }
+                ?: "${currentCode + 1}.0"
+        )
+    }
+    var downloadUrl by remember(config) { mutableStateOf(config.updateDownloadUrl) }
+    var releaseNotes by remember(config) {
+        mutableStateOf(
+            config.releaseNotes.ifBlank {
+                "New Ahxan Arena version available! Download and install the latest APK to continue playing."
+            }
+        )
+    }
+
+    val targetCode = versionCodeText.trim().toLongOrNull() ?: 0L
+    val willBlockCurrentBuild = forceEnabled && downloadUrl.trim().isNotBlank() && targetCode > currentCode.toLong()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            SectionHeader(
+                title = "New App Update Manager",
+                subtitle = "Force all old-version users to download your latest update link"
+            )
+        }
+
+        item {
+            CyberGlassCard(glowColor = if (config.forceUpdateEnabled) ArenaOrange else NeonCyan) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Installed App Build", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                        Text(
+                            "v$currentName (Build $currentCode)",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    StatusPill(
+                        label = if (config.forceUpdateEnabled) "FORCE UPDATE ON" else "GATE OFF",
+                        color = if (config.forceUpdateEnabled) ArenaOrange else EmeraldProfit
+                    )
+                }
+                if (config.forceUpdateEnabled && config.updateDownloadUrl.isNotBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Live Target: v${config.latestVersionName} (Build ${config.latestVersionCode})",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = CoinYellow
+                    )
+                    Text(
+                        "Link: ${config.updateDownloadUrl}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        item {
+            CyberGlassCard(glowColor = ArenaBlue) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = ArenaOrange, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Force Update (Block Old Versions)", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                        }
+                        Text(
+                            "Users below target Version Code cannot use the app until they update",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted
+                        )
+                    }
+                    Switch(
+                        checked = forceEnabled,
+                        onCheckedChange = { forceEnabled = it },
+                        modifier = Modifier.testTag("admin_force_update_switch")
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = versionCodeText,
+                        onValueChange = { ch -> versionCodeText = ch.filter { it.isDigit() } },
+                        label = { Text("Min Version Code") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f).testTag("admin_update_version_code_input")
+                    )
+                    OutlinedTextField(
+                        value = versionNameText,
+                        onValueChange = { versionNameText = it },
+                        label = { Text("New Version Name") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f).testTag("admin_update_version_name_input")
+                    )
+                }
+
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(
+                        selected = targetCode == (currentCode + 1).toLong(),
+                        onClick = {
+                            versionCodeText = (currentCode + 1).toString()
+                            if (versionNameText.isBlank() || versionNameText == currentName) {
+                                versionNameText = "${currentCode + 1}.0"
+                            }
+                        },
+                        label = { Text("Block Build $currentCode (Set Code ${currentCode + 1})") }
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = downloadUrl,
+                    onValueChange = { downloadUrl = it },
+                    label = { Text("New Update Download Link * (APK / Drive / Play Store)") },
+                    placeholder = { Text("https://example.com/AhxanArena-v2.apk") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("admin_update_download_url_input")
+                )
+
+                if (downloadUrl.trim().isNotBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val normalized = if (downloadUrl.trim().contains("://")) downloadUrl.trim() else "https://${downloadUrl.trim()}"
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(normalized)))
+                            }.onFailure {
+                                Toast.makeText(context, "Invalid or unsupported URL", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Test Open Download Link", color = NeonCyan)
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = releaseNotes,
+                    onValueChange = { releaseNotes = it },
+                    label = { Text("What's New / Update Message") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth().testTag("admin_update_notes_input")
+                )
+
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = if (willBlockCurrentBuild) {
+                        "Preview: Build $currentCode WILL see the mandatory Update Screen and redirect to your link."
+                    } else if (forceEnabled && downloadUrl.trim().isBlank()) {
+                        "Enter a download link to activate the forced update blocker."
+                    } else {
+                        "Preview: Current Build $currentCode is allowed without update prompt."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (willBlockCurrentBuild) ArenaOrange else TextMuted
+                )
+
+                Spacer(Modifier.height(12.dp))
+                NeonPrimaryButton(
+                    text = if (busy) "Publishing..." else "Publish New Update",
+                    icon = Icons.Default.SystemUpdate,
+                    accentColor = ArenaOrange,
+                    enabled = !busy && (!forceEnabled || (downloadUrl.trim().isNotBlank() && targetCode >= 1L)),
+                    onClick = {
+                        adminVm.saveAppUpdateConfig(
+                            AppUpdateConfig(
+                                forceUpdateEnabled = forceEnabled,
+                                latestVersionCode = targetCode.coerceAtLeast(1L),
+                                latestVersionName = versionNameText.trim().ifBlank { "2.0" },
+                                updateDownloadUrl = downloadUrl.trim(),
+                                releaseNotes = releaseNotes.trim()
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("admin_publish_update_btn")
+                )
+
+                if (config.forceUpdateEnabled) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            forceEnabled = false
+                            adminVm.saveAppUpdateConfig(
+                                config.copy(forceUpdateEnabled = false)
+                            )
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth().testTag("admin_disable_update_btn")
+                    ) {
+                        Text("Turn Off Mandatory Update", color = CrimsonDanger)
+                    }
                 }
             }
         }

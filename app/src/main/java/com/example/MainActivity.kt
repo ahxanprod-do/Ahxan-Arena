@@ -2,7 +2,9 @@ package com.example
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -30,7 +33,9 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CurrencyRupee
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.SentimentSatisfied
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -76,6 +81,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.data.auth.AuthHelper
 import com.example.data.auth.authStateFlow
+import com.example.data.model.AppUpdateConfig
 import com.example.data.model.Tournament
 import com.example.data.network.PayZapiClient
 import com.example.data.repository.ArenaAdminRepository
@@ -101,6 +107,7 @@ import com.example.ui.screens.WalletScreen
 import com.example.ui.screens.admin.AdminCommandCenterScreen
 import com.example.ui.theme.AhxanArenaTheme
 import com.example.ui.theme.ArenaCharcoal
+import com.example.ui.theme.ArenaGreen
 import com.example.ui.theme.ArenaOrange
 import com.example.ui.theme.ArenaPurple
 import com.example.ui.theme.BottomNavBg
@@ -109,6 +116,7 @@ import com.example.ui.theme.CrimsonDanger
 import com.example.ui.theme.HeaderNavy
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.utils.ArenaFormatters
 import com.example.viewmodel.AdminViewModel
 import com.example.viewmodel.ArenaViewModel
 import com.google.firebase.Firebase
@@ -141,11 +149,35 @@ class MainActivity : ComponentActivity() {
                     showSplash = false
                 }
 
+                val appContext = applicationContext
+                val updateConfig by remember {
+                    val db = FirebaseFirestore.getInstance(appContext.getString(R.string.firestore_database_id))
+                    ArenaUserRepository(db).observeAppUpdateConfig()
+                }.collectAsStateWithLifecycle(initialValue = AppUpdateConfig())
+
                 val authUser by remember { Firebase.auth.authStateFlow() }
                     .collectAsStateWithLifecycle(initialValue = Firebase.auth.currentUser)
 
+                val isCurrentSuperAdmin = authUser?.email.equals("ahxantalib@gmail.com", ignoreCase = true) &&
+                    authUser?.isEmailVerified == true
+                var bypassUpdateForAdmin by rememberSaveable { mutableStateOf(false) }
+
+                LaunchedEffect(updateConfig.forceUpdateEnabled, updateConfig.latestVersionCode) {
+                    if (!updateConfig.isUpdateRequired(BuildConfig.VERSION_CODE)) {
+                        bypassUpdateForAdmin = false
+                    }
+                }
+
                 if (showSplash) {
                     SplashScreen()
+                } else if (updateConfig.isUpdateRequired(BuildConfig.VERSION_CODE) && !(isCurrentSuperAdmin && bypassUpdateForAdmin)) {
+                    ForceUpdateOverlay(
+                        config = updateConfig,
+                        currentVersionName = BuildConfig.VERSION_NAME,
+                        currentVersionCode = BuildConfig.VERSION_CODE,
+                        isSuperAdmin = isCurrentSuperAdmin,
+                        onAdminManageClick = { bypassUpdateForAdmin = true }
+                    )
                 } else {
                     val currentUser = authUser
                     if (currentUser == null) {
@@ -271,7 +303,7 @@ private fun AuthenticatedArenaApp(
     val participantsCache by arenaVm.participantsCache.collectAsStateWithLifecycle()
 
     val isSuperAdmin = email.equals("ahxantalib@gmail.com", ignoreCase = true) && emailVerified
-    val isAdminAccess = isSuperAdmin || staffRole != null
+    val isAdminAccess = isSuperAdmin || (staffRole?.hasAnyPermission() == true)
 
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -700,3 +732,107 @@ private fun MaintenanceOverlay(message: String, eta: String) {
         }
     }
 }
+
+@Composable
+private fun ForceUpdateOverlay(
+    config: AppUpdateConfig,
+    currentVersionName: String,
+    currentVersionCode: Int,
+    isSuperAdmin: Boolean,
+    onAdminManageClick: () -> Unit
+) {
+    BackHandler(enabled = true) {}
+    val context = LocalContext.current
+    val targetUrl = config.normalizedDownloadUrl()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ArenaCharcoal)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        CyberGlassCard(glowColor = ArenaOrange, modifier = Modifier.widthIn(max = 460.dp)) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SystemUpdate,
+                    contentDescription = "New Update Available",
+                    tint = ArenaOrange,
+                    modifier = Modifier.size(56.dp)
+                )
+                Spacer(Modifier.height(10.dp))
+                StatusPill("NEW UPDATE REQUIRED", ArenaOrange)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Update Ahxan Arena",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = TextPrimary,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "This old version (v$currentVersionName • Build $currentVersionCode) is no longer supported. Download v${config.latestVersionName} (Build ${config.latestVersionCode}) to continue.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center
+                )
+                if (config.releaseNotes.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = config.releaseNotes,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = CoinYellow,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                Spacer(Modifier.height(18.dp))
+                Button(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+                        }.onFailure {
+                            ArenaFormatters.copyToClipboard(context, "Update Download Link", targetUrl)
+                            Toast.makeText(
+                                context,
+                                "Link copied! Open it in your browser to download.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ArenaGreen, contentColor = Color.White),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("force_update_download_btn")
+                ) {
+                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Download New Update (v${config.latestVersionName})")
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        ArenaFormatters.copyToClipboard(context, "Update Download Link", targetUrl)
+                        Toast.makeText(context, "Download link copied!", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("force_update_copy_link_btn")
+                ) {
+                    Text("Copy Download Link", color = CoinYellow)
+                }
+                if (isSuperAdmin) {
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        onClick = onAdminManageClick,
+                        modifier = Modifier.testTag("force_update_admin_manage_btn")
+                    ) {
+                        Text("Super Admin: Open App & Manage Update", color = ArenaOrange)
+                    }
+                }
+            }
+        }
+    }
+}
+

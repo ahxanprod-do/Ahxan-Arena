@@ -1,6 +1,8 @@
 package com.example
 
+import com.example.data.model.AppUpdateConfig
 import com.example.data.model.ReferralConfig
+import com.example.data.model.StaffRole
 import com.example.data.model.Tournament
 import com.example.utils.ArenaFormatters
 import org.junit.Assert.*
@@ -83,5 +85,36 @@ class ExampleUnitTest {
       "https://ahxanarena.com/r/TEAM7",
       ReferralConfig(websiteBaseUrl = "https://ahxanarena.com/r/{CODE}").buildInviteLink("TEAM7")
     )
+  }
+
+  @Test
+  fun appUpdateConfig_blocksOlderBuildsOnlyWhenForceEnabledAndUrlPresent() {
+    val active = AppUpdateConfig(
+      forceUpdateEnabled = true,
+      latestVersionCode = 2L,
+      latestVersionName = "2.0",
+      updateDownloadUrl = "ahxanarena.com/latest.apk"
+    )
+    assertTrue(active.isUpdateRequired(currentVersionCode = 1))
+    assertFalse(active.isUpdateRequired(currentVersionCode = 2))
+    assertFalse(active.isUpdateRequired(currentVersionCode = 3))
+    assertEquals("https://ahxanarena.com/latest.apk", active.normalizedDownloadUrl())
+
+    val disabled = active.copy(forceUpdateEnabled = false)
+    assertFalse(disabled.isUpdateRequired(currentVersionCode = 1))
+
+    val missingUrl = active.copy(updateDownloadUrl = "   ")
+    assertFalse(missingUrl.isUpdateRequired(currentVersionCode = 1))
+  }
+
+  @Test
+  fun staffRole_permissionHelpersTrackExactEnabledOptions() {
+    val empty = StaffRole(userId = "u1", email = "staff@example.com")
+    assertFalse(empty.hasAnyPermission())
+    assertTrue(empty.grantedPermissionLabels().isEmpty())
+
+    val roomAndTickets = empty.copy(publishRooms = true, replyTickets = true)
+    assertTrue(roomAndTickets.hasAnyPermission())
+    assertEquals(listOf("Publish Rooms", "Reply Tickets"), roomAndTickets.grantedPermissionLabels())
   }
 }

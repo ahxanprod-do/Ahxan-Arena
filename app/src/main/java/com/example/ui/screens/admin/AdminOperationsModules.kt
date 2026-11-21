@@ -336,7 +336,9 @@ fun AdminTournamentEngineModule(
     roster: List<MatchSlot>,
     categories: List<GameCategory> = emptyList(),
     busy: Boolean,
-    adminVm: AdminViewModel
+    adminVm: AdminViewModel,
+    canManageMatches: Boolean = true,
+    canPublishRooms: Boolean = true
 ) {
     var editingMatch by remember { mutableStateOf<Tournament?>(null) }
     var publishingRoomMatch by remember { mutableStateOf<Tournament?>(null) }
@@ -366,21 +368,23 @@ fun AdminTournamentEngineModule(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 SectionHeader("Tournament & Match Engine", "${filteredMatches.size} of ${tournaments.size} matches")
             }
-            Spacer(Modifier.height(8.dp))
-            NeonPrimaryButton(
-                text = "Create New Match",
-                icon = Icons.Default.Add,
-                onClick = {
-                    editingMatch = Tournament(
-                        scheduledAtMillis = System.currentTimeMillis() + 3600_000L * 2,
-                        maxSlots = 100L,
-                        entryFee = 30.0,
-                        prizePool = 2000.0,
-                        perKillReward = 20.0
-                    )
-                },
-                modifier = Modifier.fillMaxWidth().testTag("admin_create_match_btn")
-            )
+            if (canManageMatches) {
+                Spacer(Modifier.height(8.dp))
+                NeonPrimaryButton(
+                    text = "Create New Match",
+                    icon = Icons.Default.Add,
+                    onClick = {
+                        editingMatch = Tournament(
+                            scheduledAtMillis = System.currentTimeMillis() + 3600_000L * 2,
+                            maxSlots = 100L,
+                            entryFee = 30.0,
+                            prizePool = 2000.0,
+                            perKillReward = 20.0
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("admin_create_match_btn")
+                )
+            }
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = matchQuery,
@@ -429,13 +433,17 @@ fun AdminTournamentEngineModule(
                 }
                 Spacer(Modifier.height(10.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item { OutlinedButton(onClick = { editingMatch = m }) { Text("Edit", color = NeonCyan) } }
-                    item { OutlinedButton(onClick = { adminVm.cloneTournament(m) }) { Text("Clone", color = ElectricViolet) } }
-                    item {
-                        OutlinedButton(onClick = { publishingRoomMatch = m }) {
-                            Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(14.dp), tint = AmberWarning)
-                            Spacer(Modifier.width(4.dp))
-                            Text(if (m.roomPublished) "Update Room" else "Publish Room", color = AmberWarning)
+                    if (canManageMatches) {
+                        item { OutlinedButton(onClick = { editingMatch = m }) { Text("Edit", color = NeonCyan) } }
+                        item { OutlinedButton(onClick = { adminVm.cloneTournament(m) }) { Text("Clone", color = ElectricViolet) } }
+                    }
+                    if (canPublishRooms || canManageMatches) {
+                        item {
+                            OutlinedButton(onClick = { publishingRoomMatch = m }) {
+                                Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(14.dp), tint = AmberWarning)
+                                Spacer(Modifier.width(4.dp))
+                                Text(if (m.roomPublished) "Update Room" else "Publish Room", color = AmberWarning)
+                            }
                         }
                     }
                     item {
@@ -448,7 +456,7 @@ fun AdminTournamentEngineModule(
                             Text("Roster")
                         }
                     }
-                    if (m.status != "completed" && m.status != "cancelled") {
+                    if (canManageMatches && m.status != "completed" && m.status != "cancelled") {
                         item {
                             OutlinedButton(onClick = {
                                 adminVm.loadRoster(m.id)
@@ -467,7 +475,7 @@ fun AdminTournamentEngineModule(
                             }
                         }
                     }
-                    if (m.filledSlots == 0L || m.status in listOf("cancelled", "completed")) {
+                    if (canManageMatches && (m.filledSlots == 0L || m.status in listOf("cancelled", "completed"))) {
                         item {
                             OutlinedButton(
                                 onClick = { adminVm.deleteTournament(m) },
@@ -786,7 +794,7 @@ fun AdminTournamentEngineModule(
                                         }
                                         Text("${s.displayName} • Status: ${s.status} • Paid: ${ArenaFormatters.formatInr(s.entryPaid)}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
                                     }
-                                    if (s.status == "joined") {
+                                    if (canManageMatches && s.status == "joined") {
                                         Button(
                                             onClick = { adminVm.kickAndRefund(m, s) },
                                             colors = ButtonDefaults.buttonColors(containerColor = CrimsonDanger, contentColor = TextPrimary)

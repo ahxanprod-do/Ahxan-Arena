@@ -1,6 +1,7 @@
 package com.example.data.repository
 
 import android.os.Build
+import com.example.data.model.AppUpdateConfig
 import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
 import com.example.data.model.GameCategory
@@ -299,6 +300,20 @@ class ArenaUserRepository(private val db: FirebaseFirestore) {
                     throw error
                 }
                 emit(ReferralConfig())
+            }
+
+    fun observeAppUpdateConfig(): Flow<AppUpdateConfig> =
+        db.collection("app_config").document("update")
+            .snapshots()
+            .map { snap ->
+                snap.toObject(AppUpdateConfig::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    ?: AppUpdateConfig()
+            }
+            .catch { error ->
+                if (error is CancellationException && generateSequence<Throwable>(error) { it.cause }.none { it is FirebaseFirestoreException }) {
+                    throw error
+                }
+                emit(AppUpdateConfig())
             }
 
     fun observeUserNotifications(uid: String): Flow<List<UserNotification>> =

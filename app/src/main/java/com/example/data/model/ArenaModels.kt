@@ -434,7 +434,47 @@ data class StaffRole(
     val systemSettings: Boolean = false,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
-)
+) {
+    fun hasAnyPermission(): Boolean =
+        manageMatches || publishRooms || verifyDeposits || approveWithdrawals ||
+            manageCoupons || replyTickets || sendPush || manageUsers || systemSettings
+
+    fun grantedPermissionLabels(): List<String> = buildList {
+        if (manageMatches) add("Manage Matches")
+        if (publishRooms) add("Publish Rooms")
+        if (verifyDeposits) add("Verify Deposits")
+        if (approveWithdrawals) add("Approve Payouts")
+        if (manageCoupons) add("Manage Coupons")
+        if (replyTickets) add("Reply Tickets")
+        if (sendPush) add("Push Studio")
+        if (manageUsers) add("Users & Coins")
+        if (systemSettings) add("CMS & Settings")
+    }
+}
+
+@Keep
+@IgnoreExtraProperties
+data class AppUpdateConfig(
+    @DocumentId val id: String = "",
+    val forceUpdateEnabled: Boolean = false,
+    val latestVersionCode: Long = 1L,
+    val latestVersionName: String = "1.0",
+    val updateDownloadUrl: String = "",
+    val releaseNotes: String = "",
+    val updatedBy: String = "",
+    @ServerTimestamp val updatedAt: Timestamp? = null
+) {
+    fun normalizedDownloadUrl(): String {
+        val raw = updateDownloadUrl.trim()
+        if (raw.isEmpty()) return ""
+        return if (raw.contains("://")) raw else "https://$raw"
+    }
+
+    fun isUpdateRequired(currentVersionCode: Int): Boolean =
+        forceUpdateEnabled &&
+            updateDownloadUrl.trim().isNotBlank() &&
+            latestVersionCode > currentVersionCode.toLong()
+}
 
 @Keep
 @IgnoreExtraProperties

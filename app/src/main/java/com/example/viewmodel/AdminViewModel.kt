@@ -2,6 +2,7 @@ package com.example.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.model.AppUpdateConfig
 import com.example.data.model.AuditLog
 import com.example.data.model.BroadcastNotification
 import com.example.data.model.CmsBanner
@@ -367,6 +368,21 @@ class AdminViewModel(
             _busy.value = false
             res.onSuccess { msg(true, "CMS & Platform settings saved!") }
                 .onFailure { msg(false, it.localizedMessage ?: "Save failed") }
+        }
+    }
+
+    fun saveAppUpdateConfig(cfg: AppUpdateConfig) {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.saveAppUpdateConfig(cfg)
+            _busy.value = false
+            res.onSuccess {
+                msg(
+                    true,
+                    if (cfg.forceUpdateEnabled) "Mandatory App Update (v${cfg.latestVersionName} / Build ${cfg.latestVersionCode}) published!"
+                    else "Mandatory App Update turned OFF!"
+                )
+            }.onFailure { msg(false, it.localizedMessage ?: "Failed to save update config") }
         }
     }
 
