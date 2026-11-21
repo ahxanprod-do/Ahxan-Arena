@@ -102,6 +102,26 @@ class AdminViewModel(
         }
     }
 
+    fun deleteBroadcast(b: BroadcastNotification) {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.deleteBroadcastNotification(b)
+            _busy.value = false
+            res.onSuccess { msg(true, "Notification '${b.title}' deleted!") }
+                .onFailure { msg(false, it.localizedMessage ?: "Delete notification failed") }
+        }
+    }
+
+    fun clearAllBroadcasts() {
+        viewModelScope.launch {
+            _busy.value = true
+            val res = adminRepo.clearAllBroadcasts(broadcasts.value)
+            _busy.value = false
+            res.onSuccess { count -> msg(true, "Deleted $count notifications!") }
+                .onFailure { msg(false, it.localizedMessage ?: "Clear notifications failed") }
+        }
+    }
+
     fun saveTournament(t: Tournament) {
         viewModelScope.launch {
             _busy.value = true

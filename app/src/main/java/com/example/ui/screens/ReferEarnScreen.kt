@@ -75,7 +75,9 @@ fun ReferEarnScreen(
     var manualCode by remember { mutableStateOf("") }
 
     val myCode = user?.referralCode.orEmpty().ifBlank { "AHXAN" }
-    val inviteLink = "ahxanarena://register?ref=$myCode"
+    val inviteLink = remember(referralConfig.websiteBaseUrl, myCode) {
+        referralConfig.buildInviteLink(myCode)
+    }
     val shareMessage = "Join me on Ahxan Arena Esports! Use my referral code $myCode ($inviteLink) to claim ₹${referralConfig.friendSignupBonus.toInt()} signup bonus!"
 
     Column(

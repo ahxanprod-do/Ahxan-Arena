@@ -378,6 +378,41 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
         }
     }
 
+    suspend fun deleteBroadcastNotification(broadcast: BroadcastNotification): Result<Unit> {
+        return try {
+            require(broadcast.id.isNotBlank()) { "Broadcast ID is required" }
+            db.collection("broadcasts").document(broadcast.id).delete().await()
+            logAudit("DELETE_BROADCAST", broadcast.id, "Deleted notification '${broadcast.title}'")
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, "broadcasts/${broadcast.id}")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun clearAllBroadcasts(broadcasts: List<BroadcastNotification>): Result<Int> {
+        return try {
+            val valid = broadcasts.filter { it.id.isNotBlank() }
+            if (valid.isEmpty()) return Result.success(0)
+            valid.chunked(400).forEach { chunk ->
+                val batch = db.batch()
+                chunk.forEach { b ->
+                    batch.delete(db.collection("broadcasts").document(b.id))
+                }
+                batch.commit().await()
+            }
+            logAudit("CLEAR_ALL_BROADCASTS", "all", "Deleted ${valid.size} broadcast notifications")
+            Result.success(valid.size)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, "broadcasts")
+            Result.failure(e)
+        }
+    }
+
     // --- MODULE 3: TOURNAMENT & MATCH ENGINE ---
     suspend fun saveTournament(tournament: Tournament): Result<Unit> {
         return try {
@@ -796,6 +831,7 @@ class ArenaAdminRepository(private val db: FirebaseFirestore) {
                     "friendSignupBonus" to config.friendSignupBonus,
                     "triggerRule" to config.triggerRule,
                     "minDepositThreshold" to config.minDepositThreshold,
+                    "websiteBaseUrl" to config.websiteBaseUrl.trim().take(500),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             ).await()

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -200,11 +201,15 @@ fun AdminReferralsModule(
     var friendBonus by remember(referralConfig) { mutableStateOf(referralConfig.friendSignupBonus.toString()) }
     var triggerRule by remember(referralConfig) { mutableStateOf(referralConfig.triggerRule) }
     var minDep by remember(referralConfig) { mutableStateOf(referralConfig.minDepositThreshold.toString()) }
+    var websiteUrl by remember(referralConfig) { mutableStateOf(referralConfig.websiteBaseUrl) }
 
     val duplicateFingerprints = remember(referrals) {
         referrals.groupBy { it.deviceFingerprint }.filter { it.key.isNotBlank() && it.value.size > 1 }.keys
     }
     val topReferrers = remember(users) { users.filter { it.referralCount > 0L }.sortedByDescending { it.referralEarnings }.take(5) }
+    val linkPreview = remember(websiteUrl) {
+        ReferralConfig(websiteBaseUrl = websiteUrl).buildInviteLink("AHXAN123")
+    }
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionHeader("Refer & Earn Control Center", "${referrals.size} total invites") }
@@ -229,6 +234,28 @@ fun AdminReferralsModule(
                     }
                 }
                 OutlinedTextField(value = minDep, onValueChange = { minDep = it }, label = { Text("Min Deposit Threshold ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = websiteUrl,
+                    onValueChange = { websiteUrl = it },
+                    label = { Text("Website Referral Link / Base URL") },
+                    placeholder = { Text("https://yourwebsite.com") },
+                    leadingIcon = { Icon(Icons.Default.Link, contentDescription = null, tint = NeonCyan) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("admin_referral_website_url_input")
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "User Referral Link Preview: $linkPreview",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonCyan
+                )
+                Text(
+                    text = "Tip: Leave blank for app link, or enter website URL (supports optional {CODE} placeholder).",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted
+                )
                 Spacer(Modifier.height(10.dp))
                 NeonPrimaryButton(
                     text = if (busy) "Saving..." else "Save Referral Config",
@@ -241,11 +268,12 @@ fun AdminReferralsModule(
                                 referrerRewardValue = rewardVal.toDoubleOrNull() ?: 25.0,
                                 friendSignupBonus = friendBonus.toDoubleOrNull() ?: 15.0,
                                 triggerRule = triggerRule,
-                                minDepositThreshold = minDep.toDoubleOrNull() ?: 50.0
+                                minDepositThreshold = minDep.toDoubleOrNull() ?: 50.0,
+                                websiteBaseUrl = websiteUrl.trim()
                             )
                         )
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("admin_save_referral_config_btn")
                 )
             }
         }

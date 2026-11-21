@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.data.model.ReferralConfig
 import com.example.data.model.Tournament
 import com.example.utils.ArenaFormatters
 import org.junit.Assert.*
@@ -58,5 +59,29 @@ class ExampleUnitTest {
     val now = 1_000_000L
     assertEquals("1h 5m 30s", ArenaFormatters.formatCountdown(now + 3930_000L, now))
     assertEquals("00s", ArenaFormatters.formatCountdown(now - 1000L, now))
+  }
+
+  @Test
+  fun referralConfig_buildInviteLink_supportsWebsiteFormats() {
+    assertEquals(
+      "ahxanarena://register?ref=TEAM7",
+      ReferralConfig(websiteBaseUrl = "").buildInviteLink("TEAM7")
+    )
+    assertEquals(
+      "https://ahxanarena.com?ref=TEAM7",
+      ReferralConfig(websiteBaseUrl = "https://ahxanarena.com").buildInviteLink("TEAM7")
+    )
+    assertEquals(
+      "https://ahxanarena.com?ref=TEAM7",
+      ReferralConfig(websiteBaseUrl = "ahxanarena.com").buildInviteLink("TEAM7")
+    )
+    assertEquals(
+      "https://ahxanarena.com/join?src=app&ref=TEAM7",
+      ReferralConfig(websiteBaseUrl = "https://ahxanarena.com/join?src=app").buildInviteLink("TEAM7")
+    )
+    assertEquals(
+      "https://ahxanarena.com/r/TEAM7",
+      ReferralConfig(websiteBaseUrl = "https://ahxanarena.com/r/{CODE}").buildInviteLink("TEAM7")
+    )
   }
 }

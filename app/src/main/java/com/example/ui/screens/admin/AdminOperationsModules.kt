@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +55,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -115,6 +117,8 @@ fun AdminNotificationStudioModule(
     var route by remember { mutableStateOf("tournaments") }
     var audience by remember { mutableStateOf("all") }
     var targetId by remember { mutableStateOf("") }
+    var deleteTarget by remember { mutableStateOf<BroadcastNotification?>(null) }
+    var confirmClearAll by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -206,17 +210,122 @@ fun AdminNotificationStudioModule(
                 )
             }
         }
-        item { SectionHeader("Broadcast History (${broadcasts.size})") }
-        items(broadcasts, key = { it.id }) { b ->
-            CyberGlassCard(glowColor = ElectricViolet) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(b.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary, modifier = Modifier.weight(1f))
-                    StatusPill(b.audienceType, NeonCyan)
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SectionHeader("Broadcast History (${broadcasts.size})")
+                if (broadcasts.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = { confirmClearAll = true },
+                        enabled = !busy,
+                        modifier = Modifier.testTag("admin_clear_all_broadcasts_btn")
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete All Notifications", tint = CrimsonDanger, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Clear All", color = CrimsonDanger)
+                    }
                 }
-                Text(b.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                Text("Delivered: ${b.deliveredCount} devices • Route: ${b.redirectRoute}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
             }
         }
+        if (broadcasts.isEmpty()) {
+            item {
+                CyberGlassCard(glowColor = ElectricViolet) {
+                    Text("No sent notifications yet.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                }
+            }
+        }
+        items(broadcasts, key = { it.id }) { b ->
+            CyberGlassCard(glowColor = ElectricViolet) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(b.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(6.dp))
+                    StatusPill(b.audienceType, NeonCyan)
+                    IconButton(
+                        onClick = { deleteTarget = b },
+                        enabled = !busy,
+                        modifier = Modifier.size(48.dp).testTag("admin_delete_broadcast_${b.id}")
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete Notification", tint = CrimsonDanger)
+                    }
+                }
+                Text(b.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                Text(
+                    text = buildString {
+                        append("Delivered: ${b.deliveredCount} devices • Route: ${b.redirectRoute}")
+                        b.createdAt?.toDate()?.time?.let { ms ->
+                            append(" • ${ArenaFormatters.formatTimestampMillis(ms)}")
+                        }
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted
+                )
+            }
+        }
+    }
+
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            containerColor = ObsidianSurface,
+            title = { Text("Delete Notification?", color = CrimsonDanger) },
+            text = {
+                Text(
+                    "Remove '${target.title}' from broadcast history and all users' notification bells?",
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        adminVm.deleteBroadcast(target)
+                        deleteTarget = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonDanger, contentColor = Color.White),
+                    modifier = Modifier.testTag("confirm_delete_broadcast_btn")
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    if (confirmClearAll) {
+        AlertDialog(
+            onDismissRequest = { confirmClearAll = false },
+            containerColor = ObsidianSurface,
+            title = { Text("Delete All Notifications?", color = CrimsonDanger) },
+            text = {
+                Text(
+                    "Clear all ${broadcasts.size} sent notifications from broadcast history and user inboxes?",
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        adminVm.clearAllBroadcasts()
+                        confirmClearAll = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonDanger, contentColor = Color.White),
+                    modifier = Modifier.testTag("confirm_clear_all_broadcasts_btn")
+                ) { Text("Delete All") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearAll = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
     }
 }
 

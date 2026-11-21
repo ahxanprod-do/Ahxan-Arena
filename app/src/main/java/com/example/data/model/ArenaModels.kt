@@ -396,8 +396,24 @@ data class ReferralConfig(
     val friendSignupBonus: Double = 15.0,
     val triggerRule: String = "first_deposit",
     val minDepositThreshold: Double = 50.0,
+    val websiteBaseUrl: String = "",
     @ServerTimestamp val updatedAt: Timestamp? = null
-)
+) {
+    fun buildInviteLink(referralCode: String): String {
+        val code = referralCode.trim().ifBlank { "AHXAN" }
+        val raw = websiteBaseUrl.trim()
+        if (raw.isEmpty()) return "ahxanarena://register?ref=$code"
+        val normalized = if (raw.contains("://")) raw else "https://$raw"
+        return when {
+            normalized.contains("{CODE}", ignoreCase = true) ->
+                normalized.replace("{CODE}", code, ignoreCase = true)
+            normalized.contains("?") ->
+                if (normalized.endsWith("?") || normalized.endsWith("&")) "${normalized}ref=$code" else "${normalized}&ref=$code"
+            else ->
+                "${normalized}?ref=$code"
+        }
+    }
+}
 
 @Keep
 @IgnoreExtraProperties
